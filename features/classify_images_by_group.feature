@@ -20,3 +20,9 @@ Feature: Classify images by user group
     And the admin has configured that user "Somsak" belongs to "Group A"
     When the program is executed with images from the same group
     Then the folder "Group A" should contain 2 images
+
+  Scenario: A user not in any group sends an image
+    Given the admin has configured that user "Somchai" belongs to "Group A"
+    When the program is executed with an image from unassigned user "Somsri"
+    Then no new folders should be created
+    And a warning for user "Somsri" should be logged

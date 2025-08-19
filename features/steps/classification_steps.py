@@ -27,6 +27,37 @@ def step_impl(context):
         {'user': 'Somsak', 'image_name': 'somsak_work_01.jpg'}
     ]
 
+@when('the program is executed with an image from unassigned user "{user}"')
+def step_impl(context, user):
+    context.new_images = [
+        {'user': user, 'image_name': 'somsri_unknown_pic.jpg'}
+    ]
+    context.processed_folders = []
+    context.warnings = []
+
+    for image in context.new_images:
+        current_user = image['user']
+        group = context.user_configs.get(current_user) 
+
+        if group:
+            folder_name = group
+            if not os.path.exists(folder_name):
+                os.makedirs(folder_name)
+            context.processed_folders.append(folder_name)
+        else:
+            warning_message = f"Warning: User '{current_user}' is not assigned to any group."
+            context.warnings.append(warning_message)
+            print(warning_message) 
+
+@then('no new folders should be created')
+def step_impl(context):
+    assert len(context.processed_folders) == 0, f"Expected 0 folders, but {len(context.processed_folders)} were created."
+
+@then('a warning for user "{user}" should be logged')
+def step_impl(context, user):
+    expected_warning = f"Warning: User '{user}' is not assigned to any group."
+    assert expected_warning in context.warnings, f"Expected warning for user '{user}' was not logged."
+
 @then('a folder named "{folder_name}" should be created')
 def step_impl(context, folder_name):
     if not os.path.exists(folder_name):
