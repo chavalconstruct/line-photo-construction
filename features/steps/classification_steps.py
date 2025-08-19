@@ -1,6 +1,7 @@
 from behave import *
 import os
 
+
 @given('the admin has configured that user "{user}" belongs to "{group}"')
 def step_impl(context, user, group):
     if not hasattr(context, 'user_configs'):
@@ -70,7 +71,31 @@ def step_impl(context, user):
                 f.write("dummy image content")
             context.processed_files.append(file_path)
 
-@then('the "{folder_name}" folder should contain {count:d} images')
+@when('the program is executed with a mixed batch of files from "{user}"')
+def step_impl(context, user):
+    
+    context.new_files = [
+        {'user': user, 'file_name': 'annual_report.pdf', 'type': 'document'},
+        {'user': user, 'file_name': 'vacation_photo.jpg', 'type': 'image'}
+    ]
+    context.processed_files = []
+
+    
+    images_to_process = [f for f in context.new_files if f.get('type') == 'image']
+
+    for image in images_to_process:
+        current_user = image['user']
+        group = context.user_configs.get(current_user)
+        if group:
+            if not os.path.exists(group):
+                os.makedirs(group)
+
+            file_path = os.path.join(group, image['file_name'])
+            with open(file_path, 'w') as f:
+                f.write("dummy image content")
+            context.processed_files.append(file_path)
+
+@then('the "{folder_name}" folder should contain {count:d} image')
 def step_impl(context, folder_name, count):
     if not os.path.exists(folder_name):
         file_count = 0

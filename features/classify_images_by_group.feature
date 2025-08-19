@@ -30,4 +30,9 @@ Feature: Classify images by user group
   Scenario: A user sends a non-image file
     Given the admin has configured that user "Somchai" belongs to "Group A"
     When the program is executed with a non-image file from "Somchai"
-    Then the "Group A" folder should contain 0 images
+    Then the "Group A" folder should contain 0 image
+  
+  Scenario: A user sends a mixed batch of files
+    Given the admin has configured that user "Somchai" belongs to "Group A"
+    When the program is executed with a mixed batch of files from "Somchai"
+    Then the "Group A" folder should contain 1 image
