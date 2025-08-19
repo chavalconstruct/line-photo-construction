@@ -26,3 +26,8 @@ Feature: Classify images by user group
     When the program is executed with an image from unassigned user "Somsri"
     Then no new folders should be created
     And a warning for user "Somsri" should be logged
+  
+  Scenario: A user sends a non-image file
+    Given the admin has configured that user "Somchai" belongs to "Group A"
+    When the program is executed with a non-image file from "Somchai"
+    Then the "Group A" folder should contain 0 images
