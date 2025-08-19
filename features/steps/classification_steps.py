@@ -23,10 +23,14 @@ def step_impl(context):
 
 @when('the program is executed with images from the same group')
 def step_impl(context):
-    context.new_images = [
-        {'user': 'Somchai', 'image_name': 'somchai_photo_03.jpg'},
-        {'user': 'Somsak', 'image_name': 'somsak_work_01.jpg'}
+    context.new_files = [
+        {'user': 'Somchai', 'file_name': 'somchai_photo_03.jpg', 'type': 'image'},
+        {'user': 'Somsak', 'file_name': 'somsak_work_01.jpg', 'type': 'image'}
     ]
+    
+    images_to_process = [f for f in context.new_files if f.get('type') == 'image']
+    for image in images_to_process:
+        process_image(context, image)
 
 @when('the program is executed with an image from unassigned user "{user}"')
 def step_impl(context, user):
@@ -50,26 +54,15 @@ def step_impl(context, user):
             context.warnings.append(warning_message)
             print(warning_message) 
 
-@when('the program is executed with a non-image file from "{user}"')
-def step_impl(context, user):
+@when('the program is executed with only a non-image file')
+def step_impl(context):
     context.new_files = [
-        {'user': user, 'file_name': 'annual_report.pdf', 'type': 'document'},
-        
+        {'user': 'Somchai', 'file_name': 'meeting_notes.docx', 'type': 'document'}
     ]
-    context.processed_files = []
+    
     images_to_process = [f for f in context.new_files if f.get('type') == 'image']
-
     for image in images_to_process:
-        current_user = image['user']
-        group = context.user_configs.get(current_user)
-        if group:
-            if not os.path.exists(group):
-                os.makedirs(group)
-            
-            file_path = os.path.join(group, image['file_name'])
-            with open(file_path, 'w') as f:
-                f.write("dummy image content")
-            context.processed_files.append(file_path)
+        process_image(context, image)
 
 @when('the program is executed with a mixed batch of files from "{user}"')
 def step_impl(context, user):
@@ -78,31 +71,19 @@ def step_impl(context, user):
         {'user': user, 'file_name': 'annual_report.pdf', 'type': 'document'},
         {'user': user, 'file_name': 'vacation_photo.jpg', 'type': 'image'}
     ]
-    context.processed_files = []
-
     
     images_to_process = [f for f in context.new_files if f.get('type') == 'image']
-
     for image in images_to_process:
-        current_user = image['user']
-        group = context.user_configs.get(current_user)
-        if group:
-            if not os.path.exists(group):
-                os.makedirs(group)
+        process_image(context, image)
 
-            file_path = os.path.join(group, image['file_name'])
-            with open(file_path, 'w') as f:
-                f.write("dummy image content")
-            context.processed_files.append(file_path)
-
-@then('the "{folder_name}" folder should contain {count:d} image')
+@then('the "{folder_name}" folder should contain {count:d} image(s)')
 def step_impl(context, folder_name, count):
     if not os.path.exists(folder_name):
         file_count = 0
     else:
         file_count = len(os.listdir(folder_name))
     
-    assert file_count == count, f"Expected {count} files, but found {file_count}."
+    assert file_count == count, f"Expected {count} file(s), but found {file_count}."
 
 @then('no new folders should be created')
 def step_impl(context):
@@ -129,21 +110,14 @@ def step_impl(context, user, folder_name):
         f.write("This is a dummy image file.")
     assert os.path.exists(file_path), f"Image file '{file_path}' was not found."
 
-@then('the folder "{folder_name}" should contain {count:d} images')
-def step_impl(context, folder_name, count):
-    
-    for image in context.new_images:
-        user = image['user']
-        group = context.user_configs.get(user)
-        if group and not os.path.exists(group):
+
+def process_image(context, image_data):
+    """A helper function to process and save a single image."""
+    user = image_data['user']
+    group = context.user_configs.get(user)
+    if group:
+        if not os.path.exists(group):
             os.makedirs(group)
-        if group:
-            file_path = os.path.join(group, image['image_name'])
-            with open(file_path, 'w') as f:
-                f.write("dummy image content")
-
-    assert os.path.isdir(folder_name), f"Folder '{folder_name}' does not exist."
-    files_in_folder = os.listdir(folder_name)
-    assert len(files_in_folder) == count, f"Expected {count} files, but found {len(files_in_folder)}."
-
-    
+        file_path = os.path.join(group, image_data['file_name'])
+        with open(file_path, 'w') as f:
+            f.write("dummy image content")    

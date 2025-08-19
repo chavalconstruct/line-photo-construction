@@ -14,12 +14,6 @@ Feature: Classify images by user group
     And the image from "Somchai" should be saved in the "Group A" folder
     And a folder named "Group B" should be created
     And the image from "Somsri" should be saved in the "Group B" folder
-  
-  Scenario: Multiple users from the same group send images
-    Given the admin has configured that user "Somchai" belongs to "Group A"
-    And the admin has configured that user "Somsak" belongs to "Group A"
-    When the program is executed with images from the same group
-    Then the folder "Group A" should contain 2 images
 
   Scenario: A user not in any group sends an image
     Given the admin has configured that user "Somchai" belongs to "Group A"
@@ -27,12 +21,14 @@ Feature: Classify images by user group
     Then no new folders should be created
     And a warning for user "Somsri" should be logged
   
-  Scenario: A user sends a non-image file
-    Given the admin has configured that user "Somchai" belongs to "Group A"
-    When the program is executed with a non-image file from "Somchai"
-    Then the "Group A" folder should contain 0 image
-  
-  Scenario: A user sends a mixed batch of files
-    Given the admin has configured that user "Somchai" belongs to "Group A"
-    When the program is executed with a mixed batch of files from "Somchai"
-    Then the "Group A" folder should contain 1 image
+Scenario Outline: The system correctly counts saved images based on input
+  Given the admin has configured that user "Somchai" belongs to "Group A"
+  And the admin has configured that user "Somsak" belongs to "Group A"
+  When <test_case>
+  Then the "Group A" folder should contain <expected_count> image(s)
+
+  Examples:
+    | test_case                                                      | expected_count |
+    | the program is executed with images from the same group        | 2              |
+    | the program is executed with only a non-image file             | 0              |
+    | the program is executed with a mixed batch of files from "Somchai" | 1              |
