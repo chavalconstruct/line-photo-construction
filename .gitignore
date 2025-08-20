@@ -11,3 +11,6 @@ venv/
 
 # testing
 Group */
+
+# google keys
+credentials.json
