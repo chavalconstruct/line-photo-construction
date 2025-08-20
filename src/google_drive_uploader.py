@@ -28,13 +28,35 @@ class GoogleDriveService:
             # re-raise the exception to make it clear that initialization failed
             raise 
 
-    def find_or_create_folder(self, folder_name):
+    def find_or_create_folder(self, folder_name, parent_folder_id=None):
         """
-        Finds a folder by name, creating it if it doesn't exist.
-        Returns the folder ID.
+        Finds a folder by name inside a specific parent folder. 
+        If it doesn't exist, creates it there. Returns the folder ID.
         """
-        # The real implementation will have API calls here.
-        raise NotImplementedError("This method should be implemented in the real service.")
+        if not parent_folder_id:
+            raise ValueError("parent_folder_id must be provided")
+
+        # Search for a folder, specifying that it must be in the specified parent
+        query = f"mimeType='application/vnd.google-apps.folder' and name='{folder_name}' and trashed=false and '{parent_folder_id}' in parents"
+        response = self.service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
+        files = response.get('files', [])
+
+        if files:
+            folder_id = files[0].get('id')
+            logging.info(f"Found existing folder '{folder_name}' inside parent.")
+            return folder_id
+        else:
+            # 2. if not found, create new folder and specify path
+            logging.info(f"Folder '{folder_name}' not found. Creating it inside parent {parent_folder_id}.")
+            file_metadata = {
+                'name': folder_name,
+                'mimeType': 'application/vnd.google-apps.folder',
+                'parents': [parent_folder_id]  # <-- ระบุตำแหน่งที่จะสร้าง
+            }
+            folder = self.service.files().create(body=file_metadata, fields='id').execute()
+            folder_id = folder.get('id')
+            logging.info(f"Created new folder '{folder_name}' with ID: {folder_id}")
+            return folder_id
 
     def upload_file(self, file_name, file_content, folder_id):
         """
