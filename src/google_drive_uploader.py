@@ -2,19 +2,31 @@
 This module handles the interaction with the Google Drive API for uploading files.
 """
 import logging
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 
 class GoogleDriveService:
     """
     A wrapper class for the Google Drive API service.
     This will contain the low-level logic for API calls.
     
-    Note: This is a placeholder structure. The actual implementation
-    will require the google-api-python-client library.
     """
+
+    SCOPES = ['https://www.googleapis.com/auth/drive']
+    SERVICE_ACCOUNT_FILE = 'credentials.json'
+
+
     def __init__(self, credentials=None):
-        # The real implementation will initialize the service here.
-        # For now, we don't need anything.
-        pass
+        """Initializes the service."""
+        try:
+            creds = service_account.Credentials.from_service_account_file(
+                self.SERVICE_ACCOUNT_FILE, scopes=self.SCOPES)
+            self.service = build('drive', 'v3', credentials=creds)
+            logging.info("Google Drive Service initialized successfully.")
+        except Exception as e:
+            logging.error(f"Failed to initialize Google Drive Service: {e}")
+            # re-raise the exception to make it clear that initialization failed
+            raise 
 
     def find_or_create_folder(self, folder_name):
         """
