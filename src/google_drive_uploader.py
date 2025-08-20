@@ -1,6 +1,7 @@
 """
 This module handles the interaction with the Google Drive API for uploading files.
 """
+import logging
 
 class GoogleDriveService:
     """
@@ -50,4 +51,9 @@ def upload_to_drive(service, file_name, file_content, destination_folder):
         file_content=file_content,
         folder_id=folder_id
     )
-    print(f"Successfully called upload for '{file_name}' to folder '{destination_folder}'.")
+    
+    logging.info(
+        "Successfully triggered upload for '%s' to folder '%s'.",
+        file_name,
+        destination_folder
+    )
