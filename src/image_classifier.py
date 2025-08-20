@@ -16,8 +16,14 @@ def classify_and_save_image(user_configs, image_data):
         # Create the group folder if it doesn't exist.
         if not os.path.exists(group):
             os.makedirs(group)
+        
+        
 
         # Save the image file.
         file_path = os.path.join(group, image_data['file_name'])
         with open(file_path, 'wb') as f:
             f.write(image_data.get('content', b''))
+        
+        return True # Return True on success
+    
+    return False # Return False if user has no group

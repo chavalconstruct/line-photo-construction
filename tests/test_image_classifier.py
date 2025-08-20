@@ -30,3 +30,27 @@ def test_save_image_for_known_user_creates_folder_and_file():
 
     # 4. Teardown: Remove created files/folders to not affect other tests.
     shutil.rmtree(group_folder)
+
+def test_unassigned_user_returns_false():
+    """
+    Tests that no folder or file is created for a user not in any group.
+    """
+    # 1. Setup
+    user_configs = {"Somchai": "Group A"} # Somsri is not in this config
+    image_data = {
+        'user': 'Somsri', 
+        'file_name': 'somsri_photo_01.jpg',
+        'content': b'This is another dummy content.'
+    }
+
+    # Define a folder that should NOT be created.
+    non_existent_folder = "Group B" 
+
+    # 2. Action
+    result = classify_and_save_image(user_configs, image_data)
+    classify_and_save_image(user_configs, image_data)
+
+    # 3. Assert
+    assert result is False
+    assert not os.path.exists(non_existent_folder), f"Folder '{non_existent_folder}' should not have been created."
+    assert not os.path.exists(os.path.join("Group A", image_data['file_name'])), "File should not be in another user's group folder."
