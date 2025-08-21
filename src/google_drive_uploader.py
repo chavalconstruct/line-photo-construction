@@ -3,7 +3,10 @@ This module handles the interaction with the Google Drive API for uploading file
 """
 import logging
 import io
-from google.oauth2 import service_account
+import os.path
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
@@ -13,83 +16,72 @@ class GoogleDriveService:
     This contains the real implementation for API calls.
     """
     SCOPES = ['https://www.googleapis.com/auth/drive']
-    SERVICE_ACCOUNT_FILE = 'credentials.json'
+    CREDENTIALS_FILE = 'credentials.json'
+    TOKEN_FILE = 'token.json'
 
     def __init__(self):
-        """Initializes the service."""
-        try:
-            creds = service_account.Credentials.from_service_account_file(
-                self.SERVICE_ACCOUNT_FILE, scopes=self.SCOPES)
-            self.service = build('drive', 'v3', credentials=creds)
-            logging.info("Google Drive Service initialized successfully.")
-        except Exception as e:
-            logging.error(f"Failed to initialize Google Drive Service: {e}")
-            raise
+        """Initializes the service and handles user authentication."""
+        creds = self._get_credentials()
+        self.service = build('drive', 'v3', credentials=creds)
+        logging.info("Google Drive Service initialized successfully.")
+
+    def _get_credentials(self):
+        """
+        Gets valid user credentials. If not available, it initiates
+        the user authentication flow.
+        """
+        creds = None
+        if os.path.exists(self.TOKEN_FILE):
+            creds = Credentials.from_authorized_user_file(self.TOKEN_FILE, self.SCOPES)
+        
+        # If there are no (valid) credentials available, let the user log in.
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    self.CREDENTIALS_FILE, self.SCOPES)
+                creds = flow.run_local_server(port=0)
+            
+            # Save the credentials for the next run
+            with open(self.TOKEN_FILE, 'w') as token:
+                token.write(creds.to_json())
+        return creds
 
     def find_or_create_folder(self, folder_name, parent_folder_id=None):
         """
-        Finds a folder by name inside a specific parent folder.
-        If it doesn't exist, creates it there. Returns the folder ID.
+        Finds or creates a folder. If parent_folder_id is None, 
+        it operates in the root of "My Drive".
         """
-        if not parent_folder_id:
-            raise ValueError("parent_folder_id must be provided")
+        # Build the search query
+        query_parts = [
+            "mimeType='application/vnd.google-apps.folder'",
+            f"name='{folder_name}'",
+            "trashed=false"
+        ]
+        if parent_folder_id:
+            query_parts.append(f"'{parent_folder_id}' in parents")
+        
+        query = " and ".join(query_parts)
 
-        query = f"mimeType='application/vnd.google-apps.folder' and name='{folder_name}' and trashed=false and '{parent_folder_id}' in parents"
-        response = self.service.files().list(
-            q=query,
-            spaces='drive',
-            fields='files(id, name)',
-            # Add these two lines to search in Shared Drives
-            supportsAllDrives=True,
-            includeItemsFromAllDrives=True
-        ).execute()
+        response = self.service.files().list(q=query, spaces='drive', fields='files(id)').execute()
         files = response.get('files', [])
 
         if files:
-            folder_id = files[0].get('id')
-            logging.info(f"Found existing folder '{folder_name}' inside parent.")
-            return folder_id
+            return files[0].get('id')
         else:
-            logging.info(f"Folder '{folder_name}' not found. Creating it inside parent {parent_folder_id}.")
-            file_metadata = {
-                'name': folder_name,
-                'mimeType': 'application/vnd.google-apps.folder',
-                'parents': [parent_folder_id]
-            }
-            folder = self.service.files().create(
-                body=file_metadata, 
-                fields='id',
-                # Add this line to allow creation in a Shared Drive
-                supportsAllDrives=True
-            ).execute()
-            logging.info(f"Created new folder '{folder_name}' with ID: {folder_id}")
+            file_metadata = {'name': folder_name, 'mimeType': 'application/vnd.google-apps.folder'}
+            if parent_folder_id:
+                file_metadata['parents'] = [parent_folder_id]
+            
+            folder = self.service.files().create(body=file_metadata, fields='id').execute()
             return folder.get('id')
 
     def upload_file(self, file_name, file_content, folder_id):
-        """
-        Uploads a file with the given content to a specific folder.
-        
-        Args:
-            file_name (str): The desired name of the file in Google Drive.
-            file_content (bytes): The binary content of the file.
-            folder_id (str): The ID of the parent folder to upload into.
-        """
+        # This method's logic remains the same
         file_metadata = {'name': file_name, 'parents': [folder_id]}
-        
-        # Treat the bytes content as a file for the upload
-        media = MediaIoBaseUpload(
-            io.BytesIO(file_content), 
-            mimetype='image/jpeg',  # Assuming images for now
-            resumable=True
-        )
-
-        request = self.service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='id',
-            # Add this line to allow uploading to a Shared Drive
-            supportsAllDrives=True
-        )
+        media = MediaIoBaseUpload(io.BytesIO(file_content), mimetype='image/jpeg', resumable=True)
+        request = self.service.files().create(body=file_metadata, media_body=media, fields='id')
         
         response = None
         while response is None:
