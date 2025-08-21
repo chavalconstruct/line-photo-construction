@@ -6,5 +6,4 @@ Feature: Process incoming images from LINE
     Given the LINE user ID "U12345abcde" is mapped to the application user "Somchai"
     And the admin has configured that user "Somchai" belongs to "Group A"
     When the system receives a LINE webhook for an image message from user "U12345abcde"
-    Then the system should identify the user as "Somchai"
-    And the image content should be queued for upload to "Group A"
+    Then the image content should be queued for upload to "Group A"

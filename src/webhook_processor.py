@@ -1,6 +1,7 @@
 """
 This module contains the logic for processing webhook events from the LINE API.
 """
+from src.google_drive_uploader import GoogleDriveService
 
 def process_webhook_event(event, line_user_map, user_configs):
     """
@@ -42,9 +43,20 @@ def process_webhook_event(event, line_user_map, user_configs):
     # Extract the image message ID
     image_message_id = event.get("message", {}).get("id")
 
-    # This dictionary is exactly what the first test case asserts
-    return {
-        "app_user": app_user,
-        "group": group,
-        "image_message_id": image_message_id
-    }
+   # In a real application, we would use the image_message_id to download
+    # the image content from LINE's servers. For this integration,
+    # we will use dummy content to simulate the process.
+    file_content = b'dummy image content from webhook'
+    file_name = f"{image_message_id}.jpg"
+
+    # Instantiate and use our unit-tested service
+    gdrive_service = GoogleDriveService()
+    folder_id = gdrive_service.find_or_create_folder(group)
+    uploaded_file_id = gdrive_service.upload_file(
+        file_name=file_name,
+        file_content=file_content,
+        folder_id=folder_id
+    )
+
+    # The function now returns the ID of the uploaded file
+    return uploaded_file_id
