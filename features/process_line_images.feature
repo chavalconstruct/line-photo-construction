@@ -1,9 +1,13 @@
-Feature: Process incoming images from LINE
-  As the system, I need to correctly process webhook events from the LINE Messaging API
-  so that user images can be identified and prepared for classification.
+Feature: Process images from a LINE webhook and upload to Google Drive
 
-  Scenario: The system receives an image message from a known LINE user
-    Given the LINE user ID "U12345abcde" is mapped to the application user "Somchai"
-    And the admin has configured that user "Somchai" belongs to "Group A"
-    When the system receives a LINE webhook for an image message from user "U12345abcde"
-    Then the image content should be queued for upload to "Group A"
+  Scenario: A known user sends an image
+    Given a mapping of LINE user IDs to application users
+      """
+      { "U12345": "Alice" }
+      """
+    And user configurations for Google Drive folders
+      """
+      { "Alice": "Group_A_Photos" }
+      """
+    When the system receives a LINE webhook for an image message from user "U12345"
+    Then the image from "Alice" should be uploaded to her assigned group folder
