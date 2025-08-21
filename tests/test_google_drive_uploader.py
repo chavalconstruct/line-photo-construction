@@ -77,3 +77,50 @@ def test_find_or_create_folder_when_folder_does_not_exist(mock_build, mock_get_c
     
     # 3. CRUCIAL: Verify that 'create' was called because the folder was not found.
     mock_service.files.return_value.create.assert_called_once()
+
+# We add a new patch for MediaIoBaseUpload to control its creation
+@patch('src.google_drive_uploader.MediaIoBaseUpload')
+@patch('src.google_drive_uploader.GoogleDriveService._get_credentials')
+@patch('src.google_drive_uploader.build')
+def test_upload_file_calls_api_with_correct_parameters(mock_build, mock_get_credentials, mock_media_io):
+    """
+    Tests that the upload_file method calls the Google Drive API's 'create'
+    method with the correct metadata and media body.
+    """
+    # Arrange
+    mock_service = MagicMock()
+    mock_build.return_value = mock_service
+    mock_get_credentials.return_value = MagicMock()
+
+    # We need to mock the chained calls for the resumable upload part
+    mock_request = MagicMock()
+    mock_service.files.return_value.create.return_value = mock_request
+    mock_request.next_chunk.return_value = (None, {'id': 'uploaded_file_id'}) # Simulate upload completion
+
+    # Dummy data for the test
+    file_name = 'test_image.jpg'
+    file_content = b'this is dummy image content'
+    folder_id = 'some_folder_id'
+    
+    # Act
+    google_drive_service = GoogleDriveService()
+    file_id = google_drive_service.upload_file(file_name, file_content, folder_id)
+
+    # Assert
+    # 1. Verify that the returned ID is correct.
+    assert file_id == 'uploaded_file_id'
+
+    # 2. Verify that MediaIoBaseUpload was instantiated correctly.
+    # We check that it was called with content (wrapped in BytesIO) and the correct mimetype.
+    # Note: We can't directly compare BytesIO objects, so we check the call count.
+    mock_media_io.assert_called_once()
+    # To be more specific, you could inspect args: mock_media_io.call_args[1]['mimetype'] == 'image/jpeg'
+
+    # 3. CRUCIAL: Verify that the 'create' method was called with the correct arguments.
+    expected_metadata = {'name': file_name, 'parents': [folder_id]}
+    
+    mock_service.files.return_value.create.assert_called_once_with(
+        body=expected_metadata,
+        media_body=mock_media_io.return_value, # Check that the created media object was passed
+        fields='id'
+    )
