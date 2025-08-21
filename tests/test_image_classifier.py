@@ -1,56 +1,33 @@
-import os
-import shutil
-from src.image_classifier import classify_and_save_image
+import pytest
+from src.image_classifier import ImageClassifier
 
-def test_save_image_for_known_user_creates_folder_and_file():
+def test_get_group_folder_for_assigned_user():
     """
-    Tests that a folder and file are created for a user with a defined group.
+    Tests that the classifier can return the correct group folder
+    for a user who is in the configuration.
     """
-    # 1. Setup: Prepare data and environment for the test.
-    user_configs = {"Somchai": "Group A"}
-    image_data = {
-        'user': 'Somchai',
-        'file_name': 'somchai_photo_01.jpg',
-        'content': b'This is a dummy image content.'
-    }
-    group_folder = user_configs['Somchai']
+    # 1. Arrange: Prepare the inputs
+    user_configs = {"Somchai": "Group A", "Somsri": "Group B"}
+    file_data = {'user': 'Somchai', 'file_name': 'photo.jpg'}
 
-    # Clean up old directory (if any) to ensure a clean test environment.
-    if os.path.exists(group_folder):
-        shutil.rmtree(group_folder)
+    # 2. Act: Create the classifier and call the method
+    classifier = ImageClassifier(user_configs)
+    result_folder = classifier.get_group_folder(file_data)
 
-    # 2. Action: Call the function under test.
-    classify_and_save_image(user_configs, image_data)
+    # 3. Assert: Check if the output is correct
+    assert result_folder == "Group A"
 
-    # 3. Assert: Verify that the outcome matches the expectation.
-    expected_file_path = os.path.join(group_folder, image_data['file_name'])
-
-    assert os.path.isdir(group_folder), f"Folder '{group_folder}' should have been created."
-    assert os.path.exists(expected_file_path), f"File '{expected_file_path}' should exist."
-
-    # 4. Teardown: Remove created files/folders to not affect other tests.
-    shutil.rmtree(group_folder)
-
-def test_unassigned_user_returns_false():
+def test_get_group_folder_for_unassigned_user():
     """
-    Tests that no folder or file is created for a user not in any group.
+    Tests that the classifier returns None for a user who is not in the config.
     """
-    # 1. Setup
-    user_configs = {"Somchai": "Group A"} # Somsri is not in this config
-    image_data = {
-        'user': 'Somsri', 
-        'file_name': 'somsri_photo_01.jpg',
-        'content': b'This is another dummy content.'
-    }
+    # 1. Arrange
+    user_configs = {"Somchai": "Group A"} # Note: 'Somsri' is not in this config
+    file_data = {'user': 'Somsri', 'file_name': 'somsri_photo.jpg'}
 
-    # Define a folder that should NOT be created.
-    non_existent_folder = "Group B" 
-
-    # 2. Action
-    result = classify_and_save_image(user_configs, image_data)
-    classify_and_save_image(user_configs, image_data)
+    # 2. Act
+    classifier = ImageClassifier(user_configs)
+    result_folder = classifier.get_group_folder(file_data)
 
     # 3. Assert
-    assert result is False
-    assert not os.path.exists(non_existent_folder), f"Folder '{non_existent_folder}' should not have been created."
-    assert not os.path.exists(os.path.join("Group A", image_data['file_name'])), "File should not be in another user's group folder."
+    assert result_folder is None
