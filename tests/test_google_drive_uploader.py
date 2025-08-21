@@ -1,43 +1,79 @@
-import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+import pytest
 
-# This will fail at first because the file and function don't exist yet!
-from src.google_drive_uploader import upload_to_drive
+from src.google_drive_uploader import GoogleDriveService
 
-class TestGoogleDriveUploader(unittest.TestCase):
+# The @patch decorator intercepts the 'build' function from googleapiclient.discovery
+# right where it's used inside our GoogleDriveService class.
+# We also mock '_get_credentials' to prevent any real authentication attempts.
+@patch('src.google_drive_uploader.GoogleDriveService._get_credentials')
+@patch('src.google_drive_uploader.build')
+def test_find_or_create_folder_when_folder_exists(mock_build, mock_get_credentials):
     """
-    Test suite for the Google Drive uploader functionality.
+    Tests that if a folder is found, its ID is returned 
+    and no new folder is created.
     """
+    # Arrange: Configure the mock to simulate the API's behavior.
+    # We create a mock for the entire service object chain.
+    mock_service = MagicMock()
+    mock_build.return_value = mock_service
 
-    @patch('src.google_drive_uploader.GoogleDriveService')
-    def test_upload_to_drive_calls_service_correctly(self, MockGoogleDriveService):
-        """
-        Ensures that the upload_to_drive function interacts with the
-        Google Drive service as expected for a new file and folder.
-        """
-        # 1. Setup
-        # Create a mock instance of our Google Drive service wrapper
-        mock_service_instance = MockGoogleDriveService.return_value
-        mock_service_instance.find_or_create_folder.return_value = 'mock_folder_id_123'
+    # Simulate the API response when a folder is found.
+    # The 'list' method is called, and its 'execute' returns a list with the folder.
+    mock_service.files.return_value.list.return_value.execute.return_value = {
+        'files': [{'id': 'existing_folder_id'}]
+    }
+    
+    # We need a dummy credentials object for the constructor
+    mock_get_credentials.return_value = MagicMock()
 
-        image_content = b'dummy image bytes'
-        file_name = 'test_image.jpg'
-        destination_folder = 'Group A'
+    # Act: Instantiate our service and call the method we are testing.
+    google_drive_service = GoogleDriveService()
+    folder_id = google_drive_service.find_or_create_folder('My-Existing-Folder')
 
-        # 2. Action
-        # Call the function we are testing (which doesn't exist yet)
-        upload_to_drive(
-            service=mock_service_instance,
-            file_name=file_name,
-            file_content=image_content,
-            destination_folder=destination_folder
-        )
+    # Assert: Verify that our code behaved as expected.
+    # 1. Check if the correct folder ID was returned.
+    assert folder_id == 'existing_folder_id'
 
-        # 3. Assert
-        # Verify that our service methods were called with the correct arguments
-        mock_service_instance.find_or_create_folder.assert_called_once_with('Group A')
-        mock_service_instance.upload_file.assert_called_once_with(
-            file_name='test_image.jpg',
-            file_content=b'dummy image bytes',
-            folder_id='mock_folder_id_123'
-        )
+    # 2. Verify that the 'list' method was called correctly.
+    mock_service.files.return_value.list.assert_called_once()
+    
+    # 3. CRUCIAL: Verify that the 'create' method was NOT called.
+    mock_service.files.return_value.create.assert_not_called()
+
+@patch('src.google_drive_uploader.GoogleDriveService._get_credentials')
+@patch('src.google_drive_uploader.build')
+def test_find_or_create_folder_when_folder_does_not_exist(mock_build, mock_get_credentials):
+    """
+    Tests that if a folder is not found, a new one is created 
+    and its ID is returned.
+    """
+    # Arrange: Configure the mock for this specific scenario.
+    mock_service = MagicMock()
+    mock_build.return_value = mock_service
+
+    # 1. Simulate the 'list' call finding NOTHING.
+    mock_service.files.return_value.list.return_value.execute.return_value = {
+        'files': []  # <-- Key difference: return an empty list
+    }
+
+    # 2. Simulate the 'create' call returning a new folder ID.
+    mock_service.files.return_value.create.return_value.execute.return_value = {
+        'id': 'a_newly_created_id'
+    }
+
+    mock_get_credentials.return_value = MagicMock()
+
+    # Act: Call the method under test.
+    google_drive_service = GoogleDriveService()
+    folder_id = google_drive_service.find_or_create_folder('My-New-Folder')
+
+    # Assert: Verify the behavior is correct.
+    # 1. Check that the new folder's ID was returned.
+    assert folder_id == 'a_newly_created_id'
+
+    # 2. Verify that 'list' was called to search first.
+    mock_service.files.return_value.list.assert_called_once()
+    
+    # 3. CRUCIAL: Verify that 'create' was called because the folder was not found.
+    mock_service.files.return_value.create.assert_called_once()
