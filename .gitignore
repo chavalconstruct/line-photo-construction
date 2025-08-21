@@ -16,3 +16,5 @@ Group */
 # google keys
 credentials.json
 token.json
+
+*.bak
