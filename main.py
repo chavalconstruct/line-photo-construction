@@ -2,6 +2,11 @@ from fastapi import FastAPI, Request, HTTPException
 import os
 import json
 from src.webhook_processor import process_webhook_event
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 
 # Create an instance of the FastAPI app
 app = FastAPI()

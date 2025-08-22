@@ -19,3 +19,6 @@ credentials.json
 config.json
 
 *.bak
+
+# Environment variables
+.env
