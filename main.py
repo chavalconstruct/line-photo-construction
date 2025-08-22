@@ -37,6 +37,7 @@ except (FileNotFoundError, json.JSONDecodeError) as e:
 # --- NEW: LINE SDK v3 setup ---
 channel_secret = os.getenv('LINE_CHANNEL_SECRET', None)
 channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
+parent_folder_id = os.getenv('PARENT_FOLDER_ID', None)
 if not channel_secret or not channel_access_token:
     raise RuntimeError("LINE_CHANNEL_SECRET or LINE_CHANNEL_ACCESS_TOKEN not found.")
 
@@ -67,7 +68,8 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
             LINE_USER_MAP,       
             USER_CONFIGS,        
             line_bot_api,        
-            channel_access_token 
+            channel_access_token,
+            parent_folder_id 
         )
             
     return "OK"

@@ -11,7 +11,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-async def process_webhook_event(event, line_user_map, user_configs, line_bot_api: AsyncMessagingApi, channel_access_token: str):
+async def process_webhook_event(event, line_user_map, user_configs, line_bot_api: AsyncMessagingApi, channel_access_token: str, parent_folder_id):
     """
     Processes a single event from a LINE webhook payload.
     """
@@ -61,7 +61,7 @@ async def process_webhook_event(event, line_user_map, user_configs, line_bot_api
     file_name = f"{image_message_id}.jpg"
     gdrive_service = GoogleDriveService()
     
-    folder_id = gdrive_service.find_or_create_folder(group)
+    folder_id = gdrive_service.find_or_create_folder(group, parent_folder_id=parent_folder_id)
     uploaded_file_id = gdrive_service.upload_file(
         file_name=file_name,
         file_content=file_content,
