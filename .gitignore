@@ -13,8 +13,9 @@ venv/
 Group */
 /test_*.py
 
-# google keys
-credentials.json
+# Project-specific files to ignore
 token.json
+credentials.json
+config.json
 
 *.bak
