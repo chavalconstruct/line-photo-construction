@@ -2,6 +2,8 @@ from behave import *
 import json
 from unittest.mock import patch, MagicMock
 from src.webhook_processor import process_webhook_event
+from fastapi.testclient import TestClient
+from main import app
 
 @given('a mapping of LINE user IDs to application users')
 def step_impl(context):
@@ -16,41 +18,40 @@ def step_impl(context, line_user_id):
     context.mock_image_bytes = b'fake image data from mocked line api'
     with patch('src.webhook_processor.GoogleDriveService') as mock_gdrive_service_class, \
          patch('src.webhook_processor.LineBotApi') as mock_line_api_class:
-
+        
         mock_gdrive_instance = mock_gdrive_service_class.return_value
         context.mock_gdrive_service = mock_gdrive_instance
         mock_gdrive_instance.find_or_create_folder.return_value = 'mock_folder_id'
-
+        
         mock_line_api_instance = mock_line_api_class.return_value
         response_mock = MagicMock()
         response_mock.content = context.mock_image_bytes
         mock_line_api_instance.get_message_content.return_value = response_mock
         context.mock_line_api = mock_line_api_instance
 
-        mock_webhook_body = f"""
-        {{
+        mock_webhook_body = {
             "events": [
-                {{
+                {
                     "type": "message",
-                    "message": {{ "type": "image", "id": "msg_id_9876" }},
-                    "source": {{ "type": "user", "userId": "{line_user_id}" }}
-                }}
+                    "message": {"type": "image", "id": "msg_id_9876"},
+                    "source": {"type": "user", "userId": f"{line_user_id}"}
+                }
             ]
-        }}
-        """
-        webhook_data = json.loads(mock_webhook_body)
-        first_event = webhook_data["events"][0]
+        }
         
-        process_webhook_event(
-            event=first_event,
-            line_user_map=context.line_user_map,
-            user_configs=context.user_configs
-        )
+        # --- SOLUTION: Pass the configs from the test context to the app instance ---
+        # This ensures the app uses the correct mapping for the current test run.
+        app.LINE_USER_MAP = context.line_user_map
+        app.USER_CONFIGS = context.user_configs
+        
+        client = TestClient(app)
+        response = client.post("/webhook", json=mock_webhook_body)
+        context.response = response
 
 @then('the image from "{app_user}" should be uploaded to her assigned group folder')
 def step_impl(context, app_user):
-    # --- NEW LOGIC ---
-    # Calculate the expected group name based on the setup in the 'Given' step.
+    # The 'then' step remains mostly the same, as we are still asserting
+    # the side effects (the mock calls) of our business logic.
     expected_group_name = context.user_configs.get(app_user)
     
     context.mock_line_api.get_message_content.assert_called_once_with("msg_id_9876")
@@ -63,3 +64,7 @@ def step_impl(context, app_user):
         file_content=context.mock_image_bytes,
         folder_id='mock_folder_id'
     )
+
+    # We can also assert the HTTP response status.
+    assert context.response.status_code == 200
+    assert context.response.json() == {"status": "success", "message": "Event processed successfully"}
