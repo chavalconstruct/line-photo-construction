@@ -1,58 +1,73 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 import os
 import json
-from src.webhook_processor import process_webhook_event
 from dotenv import load_dotenv
+from src.webhook_processor import process_webhook_event
+# --- NEW IMPORTS from LINE SDK v3 ---
+from linebot.v3.webhook import WebhookParser
+from linebot.v3.messaging import AsyncApiClient, AsyncMessagingApi, Configuration
+from linebot.v3.exceptions import InvalidSignatureError
+import logging
+import sys
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    stream=sys.stdout,
+)
 # Load environment variables from .env file
 load_dotenv()
-
 
 # Create an instance of the FastAPI app
 app = FastAPI()
 
-# This ensures that our app is configured on startup with external data.
+# Load configuration from file
 CONFIG_FILE = "config.json"
 try:
     with open(CONFIG_FILE, 'r') as f:
         config = json.load(f)
         LINE_USER_MAP = config.get("line_user_map", {})
         USER_CONFIGS = config.get("user_configs", {})
-except FileNotFoundError:
-    print(f"Error: Configuration file '{CONFIG_FILE}' not found.")
-    LINE_USER_MAP = {}
-    USER_CONFIGS = {}
-except json.JSONDecodeError:
-    print(f"Error: Invalid JSON format in '{CONFIG_FILE}'.")
+except (FileNotFoundError, json.JSONDecodeError) as e:
+    print(f"Error loading config file: {e}")
     LINE_USER_MAP = {}
     USER_CONFIGS = {}
 
-# A simple root endpoint for a health check
+# --- NEW: LINE SDK v3 setup ---
+channel_secret = os.getenv('LINE_CHANNEL_SECRET', None)
+channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
+if not channel_secret or not channel_access_token:
+    raise RuntimeError("LINE_CHANNEL_SECRET or LINE_CHANNEL_ACCESS_TOKEN not found.")
+
+configuration = Configuration(access_token=channel_access_token)
+async_api_client = AsyncApiClient(configuration)
+line_bot_api = AsyncMessagingApi(async_api_client)
+parser = WebhookParser(channel_secret)
+
 @app.get("/")
 def read_root():
     return {"message": "Image Upload Service is running"}
 
-# The main webhook endpoint to receive events from LINE
 @app.post("/webhook")
-async def handle_webhook(request: Request):
+async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
     try:
-        data = await request.json()
-        print("Received webhook event:", data)
-        
-        # We process each event in the payload.
-        events = data.get("events", [])
-        
-        for event in events:
-            # --- USE THE GLOBAL CONFIGS LOADED ON STARTUP ---
-            result = process_webhook_event(event, LINE_USER_MAP, USER_CONFIGS)
-            if result:
-                print(f"Successfully processed event. Uploaded file ID: {result}")
-        
-        return {"status": "success", "message": "Event processed successfully"}
-    
-    except json.JSONDecodeError:
-        print("Error: Invalid JSON format")
-        raise HTTPException(status_code=400, detail="Invalid JSON format")
+        signature = request.headers['X-Line-Signature']
+        body = (await request.body()).decode('utf-8')
+        events = parser.parse(body, signature)
+    except InvalidSignatureError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    for event in events:
+        background_tasks.add_task(
+            process_webhook_event, 
+            event,               
+            LINE_USER_MAP,       
+            USER_CONFIGS,        
+            line_bot_api,        
+            channel_access_token 
+        )
+            
+    return "OK"
