@@ -3,38 +3,37 @@ import os
 import json
 from dotenv import load_dotenv
 from src.webhook_processor import process_webhook_event
-# --- NEW IMPORTS from LINE SDK v3 ---
+from src.state_manager import StateManager
+from src.config_manager import ConfigManager
 from linebot.v3.webhook import WebhookParser
 from linebot.v3.messaging import AsyncApiClient, AsyncMessagingApi, Configuration
 from linebot.v3.exceptions import InvalidSignatureError
 import logging
 import sys
 
-
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     stream=sys.stdout,
 )
-# Load environment variables from .env file
 load_dotenv()
 
-# Create an instance of the FastAPI app
 app = FastAPI()
 
-# Load configuration from file
+# --- NEW: Load config and initialize managers ---
 CONFIG_FILE = "config.json"
 try:
     with open(CONFIG_FILE, 'r') as f:
-        config = json.load(f)
-        LINE_USER_MAP = config.get("line_user_map", {})
-        USER_CONFIGS = config.get("user_configs", {})
+        config_data = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError) as e:
-    print(f"Error loading config file: {e}")
-    LINE_USER_MAP = {}
-    USER_CONFIGS = {}
+    logging.error(f"Error loading config file: {e}")
+    config_data = {}
 
-# --- NEW: LINE SDK v3 setup ---
+# Create singleton instances of our managers
+app.state_manager = StateManager()
+app.config_manager = ConfigManager(config_data)
+# --- END NEW ---
+
 channel_secret = os.getenv('LINE_CHANNEL_SECRET', None)
 channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
 parent_folder_id = os.getenv('PARENT_FOLDER_ID', None)
@@ -48,7 +47,7 @@ parser = WebhookParser(channel_secret)
 
 @app.get("/")
 def read_root():
-    return {"message": "Image Upload Service is running"}
+    return {"message": "Stateful Image Upload Service is running"}
 
 @app.post("/webhook")
 async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
@@ -60,16 +59,17 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail="Invalid signature")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-        
+
     for event in events:
+        # Pass manager instances to the processing function
         background_tasks.add_task(
-            process_webhook_event, 
-            event,               
-            LINE_USER_MAP,       
-            USER_CONFIGS,        
-            line_bot_api,        
-            channel_access_token,
-            parent_folder_id 
+            process_webhook_event,
+            event=event,
+            state_manager=app.state_manager,
+            config_manager=app.config_manager,
+            line_bot_api=line_bot_api,
+            channel_access_token=channel_access_token,
+            parent_folder_id=parent_folder_id
         )
-            
+
     return "OK"
