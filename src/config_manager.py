@@ -17,8 +17,6 @@ class ConfigManager:
         """Finds the application user name from a LINE user ID."""
         return self._line_user_map.get(line_user_id)
 
-    # --- NEW METHODS ---
-
     def is_admin(self, line_user_id: str) -> bool:
         """Checks if a given LINE user ID belongs to an admin."""
         return line_user_id in self._admins
@@ -28,18 +26,21 @@ class ConfigManager:
         self._secret_code_map[code] = group
         print(f"Updated config: Added/updated code '{code}' for group '{group}'")
 
-    def remove_secret_code(self, code: str):
-        """Removes a secret code from the configuration if it exists."""
+    def remove_secret_code(self, code: str) -> bool: # <-- ADDED RETURN TYPE
+        """
+        Removes a secret code from the configuration if it exists.
+        Returns True if removal was successful, False otherwise.
+        """
         if code in self._secret_code_map:
             del self._secret_code_map[code]
             print(f"Updated config: Removed code '{code}'")
+            return True # <-- RETURN TRUE ON SUCCESS
+        return False # <-- RETURN FALSE IF NOT FOUND
 
     def save_config(self, file_path: str):
         """Saves the current configuration data to a file."""
-        # Reconstruct the main dictionary before saving
         self._config_data["secret_code_map"] = self._secret_code_map
         self._config_data["admins"] = self._admins
-        # (line_user_map is usually static, but good practice to include it)
         self._config_data["line_user_map"] = self._line_user_map
 
         with open(file_path, 'w') as f:

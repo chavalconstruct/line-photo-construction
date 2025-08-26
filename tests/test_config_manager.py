@@ -61,15 +61,22 @@ def test_add_secret_code(mock_config_data):
     config_manager.add_secret_code("#s3", "Group_C")
     assert config_manager.get_group_from_secret_code("#s3") == "Group_C"
 
-def test_remove_secret_code(mock_config_data):
-    """Tests that an existing secret code can be removed."""
+def test_remove_secret_code_returns_true_on_success(mock_config_data):
+    """Tests that remove_secret_code returns True when a code is removed."""
     config_manager = ConfigManager(mock_config_data)
     # Ensure it exists first
     assert config_manager.get_group_from_secret_code("#s2") == "Group_B"
-    # Remove it
-    config_manager.remove_secret_code("#s2")
+    # Remove it and check the return value
+    result = config_manager.remove_secret_code("#s2")
+    assert result is True
     # Assert it's gone
     assert config_manager.get_group_from_secret_code("#s2") is None
+
+def test_remove_non_existent_code_returns_false(mock_config_data):
+    """Tests that remove_secret_code returns False if the code does not exist."""
+    config_manager = ConfigManager(mock_config_data)
+    result = config_manager.remove_secret_code("#non_existent_code")
+    assert result is False
 
 def test_save_config(mock_config_data):
     """

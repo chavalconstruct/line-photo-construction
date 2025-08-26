@@ -1,9 +1,5 @@
 Feature: Manage secret codes via chat commands as an admin
 
-  Background:
-    Given the secret code "#s1" is configured for the "Group_A_Photos" folder
-    And the secret code "#s2" is configured for the "Group_B_Events" folder
-
   Scenario: An admin successfully adds a new secret code
     Given the system is configured with "U123_Admin" as an admin user
     When admin user "U123_Admin" sends the message "add code #s3 for group Group_C_New"
@@ -21,3 +17,8 @@ Feature: Manage secret codes via chat commands as an admin
     When non-admin user "U456_NormalUser" sends the message "remove code #s1"
     Then the bot should reply with "Error: You do not have permission to use this command."
     And the secret code "#s1" should still be mapped to the group "Group_A_Photos"
+
+  Scenario: An admin tries to remove a non-existent secret code
+    Given the system is configured with "U123_Admin" as an admin user
+    When admin user "U123_Admin" sends the message "remove code #code_that_does_not_exist"
+    Then the bot should reply with "Error: Code #code_that_does_not_exist was not found and could not be removed."
