@@ -65,10 +65,6 @@ def health_check():
     """A simple endpoint to confirm the service is up and handle HEAD requests."""
     return {"status": "ok"}
 
-@app.get("/debug-sentry")
-def trigger_error():
-    division_by_zero = 1 / 0
-
 @app.post("/webhook")
 async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
     try:
