@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     # บอกให้ Docker Compose สร้าง image จาก Dockerfile ในโฟลเดอร์ปัจจุบัน
