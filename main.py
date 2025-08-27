@@ -21,7 +21,7 @@ load_dotenv()
 app = FastAPI()
 
 # --- NEW: Load config and initialize managers ---
-CONFIG_FILE = "config.json"
+CONFIG_FILE = os.getenv('CONFIG_FILE_PATH', 'config.json')
 try:
     with open(CONFIG_FILE, 'r') as f:
         config_data = json.load(f)

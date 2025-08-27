@@ -9,6 +9,10 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
+import dotenv
+
+dotenv.load_dotenv()
+
 
 class GoogleDriveService:
     """
@@ -16,8 +20,8 @@ class GoogleDriveService:
     This contains the real implementation for API calls.
     """
     SCOPES = ['https://www.googleapis.com/auth/drive']
-    CREDENTIALS_FILE = 'credentials.json'
-    TOKEN_FILE = 'token.json'
+    CREDENTIALS_FILE = os.getenv('CREDENTIALS_FILE_PATH', 'credentials.json')
+    TOKEN_FILE = os.getenv('TOKEN_FILE_PATH', 'token.json')
 
     def __init__(self):
         """Initializes the service and handles user authentication."""
