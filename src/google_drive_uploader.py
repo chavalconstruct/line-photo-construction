@@ -28,7 +28,7 @@ class GoogleDriveService:
         """Initializes the service and handles user authentication."""
         # If running in production, copy the read-only token to a writable location
         if os.getenv('ENV') == 'production':
-            writable_path = '/var/data/token.json'
+            writable_path = '/tmp/token.json'
             # Create directory if it doesn't exist
             os.makedirs(os.path.dirname(writable_path), exist_ok=True)
             # Copy the secret file to the writable path
