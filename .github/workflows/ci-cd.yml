@@ -24,5 +24,25 @@ jobs:
       - name: Run unit tests with pytest
         run: pytest
 
+      # --- ADD THIS NEW STEP ---
+      - name: Create test config for Behave tests
+        run: |
+          cat <<EOF > config.json
+          {
+            "secret_code_map": {
+              "#s1": "Group_A_Photos",
+              "#s2": "Group_B_Photos"
+            },
+            "line_user_map": {
+              "U123_Admin": "AdminUser",
+              "U456_NormalUser": "NormalUser"
+            },
+            "admins": [
+              "U123_Admin"
+            ]
+          }
+          EOF
+      # -------------------------
+
       - name: Run behavior tests with behave
         run: behave
