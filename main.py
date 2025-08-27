@@ -50,6 +50,11 @@ def read_root():
     # This is a test comment for the CI/CD pipeline.
     return {"message": "Stateful Image Upload Service is running"}
 
+@app.get("/health", status_code=200)
+def health_check():
+    """A simple endpoint to confirm the service is up."""
+    return {"status": "ok"}
+
 @app.post("/webhook")
 async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
     try:
