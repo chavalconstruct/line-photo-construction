@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# Python Caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+.venv/
+venv/
+
+# Testing & Cache
+.pytest_cache/
+.coverage
+
+# IDE specific
+.idea/
+.vscode/
+
+# OS specific
+.DS_Store
+
+# Secrets & Credentials - DO NOT INCLUDE IN IMAGE
+.env
+token.json
+credentials.json
+config.json
+
+# Local artifacts
+*.bak
