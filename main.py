@@ -50,9 +50,9 @@ def read_root():
     # This is a test comment for the CI/CD pipeline.
     return {"message": "Stateful Image Upload Service is running"}
 
-@app.get("/health", status_code=200)
+@app.api_route("/health", methods=["GET", "HEAD"], status_code=200)
 def health_check():
-    """A simple endpoint to confirm the service is up."""
+    """A simple endpoint to confirm the service is up and handle HEAD requests."""
     return {"status": "ok"}
 
 @app.post("/webhook")
