@@ -10,6 +10,7 @@ from linebot.v3.messaging import AsyncApiClient, AsyncMessagingApi, Configuratio
 from linebot.v3.exceptions import InvalidSignatureError
 import logging
 import sys
+import sentry_sdk 
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,6 +18,15 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 load_dotenv()
+
+sentry_dsn = os.getenv('SENTRY_DSN', None)
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for performance monitoring.
+        traces_sample_rate=1.0,
+    )
 
 app = FastAPI()
 
@@ -54,6 +64,10 @@ def read_root():
 def health_check():
     """A simple endpoint to confirm the service is up and handle HEAD requests."""
     return {"status": "ok"}
+
+@app.get("/debug-sentry")
+def trigger_error():
+    division_by_zero = 1 / 0
 
 @app.post("/webhook")
 async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
