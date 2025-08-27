@@ -9,6 +9,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
+import shutil
 import dotenv
 
 dotenv.load_dotenv()
@@ -25,6 +26,16 @@ class GoogleDriveService:
 
     def __init__(self):
         """Initializes the service and handles user authentication."""
+        # If running in production, copy the read-only token to a writable location
+        if os.getenv('ENV') == 'production':
+            writable_path = '/var/data/token.json'
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(writable_path), exist_ok=True)
+            # Copy the secret file to the writable path
+            shutil.copy(self.TOKEN_FILE, writable_path)
+            # Point TOKEN_FILE to the new writable path
+            self.TOKEN_FILE = writable_path
+            logging.info(f"Running in production. Using writable token at {self.TOKEN_FILE}")
         creds = self._get_credentials()
         self.service = build('drive', 'v3', credentials=creds)
         logging.info("Google Drive Service initialized successfully.")
