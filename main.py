@@ -47,6 +47,7 @@ parser = WebhookParser(channel_secret)
 
 @app.get("/")
 def read_root():
+    # This is a test comment for the CI/CD pipeline.
     return {"message": "Stateful Image Upload Service is running"}
 
 @app.post("/webhook")
