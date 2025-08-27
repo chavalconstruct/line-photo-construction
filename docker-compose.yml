@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  app:
+    # บอกให้ Docker Compose สร้าง image จาก Dockerfile ในโฟลเดอร์ปัจจุบัน
+    build: .
+
+    # กำหนดการ map port จากเครื่องของเรา (ซ้าย) ไปยัง port ใน container (ขวา)
+    ports:
+      - "8000:8000"
+
+    # โหลด Environment Variables ทั้งหมดจากไฟล์ .env เข้ามาใน container
+    env_file:
+      - .env
+
+    # Mount ไฟล์ Secrets จากเครื่องเราเข้าไปใน Container
+    # นี่คือวิธีที่เราจัดการกับไฟล์ที่ละเอียดอ่อนสำหรับการพัฒนาบนเครื่อง
+    volumes:
+      - ./credentials.json:/app/credentials.json
+      - ./token.json:/app/token.json
+      - ./config.json:/app/config.json
