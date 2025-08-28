@@ -41,8 +41,6 @@ def test_get_app_user_for_unknown_user(mock_config_data):
     user = config_manager.get_app_user("U_unknown")
     assert user is None
 
-# --- NEW TESTS ---
-
 def test_is_admin(mock_config_data):
     """Tests that the admin check correctly identifies an admin user."""
     config_manager = ConfigManager(mock_config_data)
@@ -77,6 +75,16 @@ def test_remove_non_existent_code_returns_false(mock_config_data):
     config_manager = ConfigManager(mock_config_data)
     result = config_manager.remove_secret_code("#non_existent_code")
     assert result is False
+
+def test_get_all_secret_codes(mock_config_data):
+    """Tests that we can retrieve the entire secret code map."""
+    config_manager = ConfigManager(mock_config_data)
+    all_codes = config_manager.get_all_secret_codes()
+    expected_codes = {
+        "#s1": "Group_A",
+        "#s2": "Group_B"
+    }
+    assert all_codes == expected_codes
 
 def test_save_config(mock_config_data):
     """

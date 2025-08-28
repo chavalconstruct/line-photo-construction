@@ -3,7 +3,7 @@ from typing import Optional, Dict
 
 def parse_command(text: str) -> Optional[Dict[str, str]]:
     """
-    Parses a text message to see if it matches a known admin command format.
+    Parses a text message to see if it matches a known command format.
     
     Args:
         text: The input text message from the user.
@@ -14,8 +14,11 @@ def parse_command(text: str) -> Optional[Dict[str, str]]:
     """
     text = text.strip()
 
+    # Simple check for the '!' command first for efficiency
+    if text == "!":
+        return {"action": "list"}
+
     # Pattern for "add code <code> for group <group>"
-    # It's case-insensitive (?i)
     add_pattern = re.compile(
         r"add\s+code\s+([#\w-]+)\s+for\s+group\s+([\w_]+)", re.IGNORECASE
     )

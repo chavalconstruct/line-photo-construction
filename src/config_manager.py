@@ -12,6 +12,10 @@ class ConfigManager:
     def get_group_from_secret_code(self, code: str) -> Optional[str]:
         """Finds the group name associated with a given secret code."""
         return self._secret_code_map.get(code)
+    
+    def get_all_secret_codes(self) -> Dict[str, str]:
+        """Returns the entire dictionary of secret codes and their groups."""
+        return self._secret_code_map
 
     def get_app_user(self, line_user_id: str) -> Optional[str]:
         """Finds the application user name from a LINE user ID."""

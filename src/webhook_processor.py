@@ -30,19 +30,37 @@ async def download_image_content(image_message_id: str, channel_access_token: st
         logger.error(f"Error fetching image content: {e}")
         return None
 
-async def handle_admin_command(command: dict, user_id: str, config_manager: ConfigManager, line_bot_api: AsyncMessagingApi, event: MessageEvent):
-    # ... (this function remains unchanged)
-    if not config_manager.is_admin(user_id):
-        reply_text = "Error: You do not have permission to use this command."
-        logger.warning(f"Non-admin user {user_id} attempted to use a command.")
-    else:
-        action = command.get("action")
-        if action == "add":
+# --- REFACTORED: Renamed from handle_admin_command to handle_command ---
+async def handle_command(command: dict, user_id: str, config_manager: ConfigManager, line_bot_api: AsyncMessagingApi, event: MessageEvent):
+    """Processes a parsed command dictionary."""
+    action = command.get("action")
+
+    # --- NEW: Handle 'list' command first, as it's for everyone ---
+    if action == "list":
+        all_codes = config_manager.get_all_secret_codes()
+        if not all_codes:
+            reply_text = "No secret codes are currently configured."
+        else:
+            # Format the codes into a readable string
+            header = "Available Secret Codes:\n"
+            lines = [f"- {code} -> {group}" for code, group in all_codes.items()]
+            reply_text = header + "\n".join(lines)
+        
+        logger.info(f"User {user_id} listed all codes.")
+    
+    # --- Admin commands are now checked for permission here ---
+    elif action in ["add", "remove"]:
+        if not config_manager.is_admin(user_id):
+            reply_text = "Error: You do not have permission to use this command."
+            logger.warning(f"Non-admin user {user_id} attempted to use command '{action}'.")
+        
+        elif action == "add":
             code, group = command["code"], command["group"]
             config_manager.add_secret_code(code, group)
             config_manager.save_config(CONFIG_FILE)
             reply_text = f"Success: Code {code} has been added for group {group}."
             logger.info(f"Admin {user_id} added code {code} for group {group}.")
+        
         elif action == "remove":
             code = command["code"]
             was_removed = config_manager.remove_secret_code(code)
@@ -53,9 +71,9 @@ async def handle_admin_command(command: dict, user_id: str, config_manager: Conf
             else:
                 reply_text = f"Error: Code {code} was not found and could not be removed."
                 logger.warning(f"Admin {user_id} tried to remove non-existent code {code}.")
-        else:
-            reply_text = "Error: Unknown command."
-            logger.error(f"Unknown command action '{action}' from admin {user_id}.")
+    else:
+        reply_text = "Error: Unknown command."
+        logger.error(f"Unknown command action '{action}' from user {user_id}.")
 
     await line_bot_api.reply_message(
         ReplyMessageRequest(
@@ -75,20 +93,17 @@ async def process_webhook_event(
     if not event.source or not event.source.user_id:
         return
     user_id = event.source.user_id
-
     if isinstance(event.message, TextMessageContent):
         text = event.message.text
         command = parse_command(text)
         if command:
-            # Handle admin commands as before
-            await handle_admin_command(command, user_id, config_manager, line_bot_api, event)
+            # --- UPDATED: Call the refactored function ---
+            await handle_command(command, user_id, config_manager, line_bot_api, event)
             return
-
+        
         group = config_manager.get_group_from_secret_code(text)
         if group:
-            # This is a secret code. Start the session.
             state_manager.set_pending_upload(user_id, group)
-            # DO NOT send a reply message to the user.
             logger.info(f"Upload session started for user {user_id} to group '{group}'.")
         else:
             logger.info(f"Received non-code, non-command text from {user_id}. Ignoring.")
