@@ -14,7 +14,7 @@ Feature: Process images from a LINE webhook using a stateful secret code workflo
     When user "Alice" sends a text message with "#s1"
     And user "Bob" sends an image
     Then no files should be uploaded
-    And user "Alice" sends an image
+    When user "Alice" sends an image
     Then the image from "Alice" should be uploaded to the "Group_A_Photos" folder
 
   Scenario: A user sends an image without a preceding secret code
