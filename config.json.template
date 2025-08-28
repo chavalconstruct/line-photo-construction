@@ -5,14 +5,6 @@
     "#prj_x": "Project_X_Snaps",
     "#s3": "Group_C_New"
   },
-  "line_user_map": {
-    "U12345": "Alice",
-    "U67890": "Bob",
-    "U1f68f8c0045d25cfdca3110bc6ca7a3a": "Jod",
-    "U20c16d65fe1914fa6fb9570bb9410c00": "Construct",
-    "U123_Admin": "AdminUser",
-    "U456_NormalUser": "NormalUser"
-  },
   "admins": [
     "U20c16d65fe1914fa6fb9570bb9410c00",
     "U123_Admin"

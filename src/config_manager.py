@@ -6,7 +6,7 @@ class ConfigManager:
     def __init__(self, config_data: dict):
         self._config_data = config_data
         self._secret_code_map = self._config_data.get("secret_code_map", {})
-        self._line_user_map = self._config_data.get("line_user_map", {})
+        # self._line_user_map has been removed
         self._admins = self._config_data.get("admins", [])
 
     def get_group_from_secret_code(self, code: str) -> Optional[str]:
@@ -17,9 +17,7 @@ class ConfigManager:
         """Returns the entire dictionary of secret codes and their groups."""
         return self._secret_code_map
 
-    def get_app_user(self, line_user_id: str) -> Optional[str]:
-        """Finds the application user name from a LINE user ID."""
-        return self._line_user_map.get(line_user_id)
+    # REMOVED: get_app_user method
 
     def is_admin(self, line_user_id: str) -> bool:
         """Checks if a given LINE user ID belongs to an admin."""
@@ -30,7 +28,7 @@ class ConfigManager:
         self._secret_code_map[code] = group
         print(f"Updated config: Added/updated code '{code}' for group '{group}'")
 
-    def remove_secret_code(self, code: str) -> bool: # <-- ADDED RETURN TYPE
+    def remove_secret_code(self, code: str) -> bool:
         """
         Removes a secret code from the configuration if it exists.
         Returns True if removal was successful, False otherwise.
@@ -38,14 +36,16 @@ class ConfigManager:
         if code in self._secret_code_map:
             del self._secret_code_map[code]
             print(f"Updated config: Removed code '{code}'")
-            return True # <-- RETURN TRUE ON SUCCESS
-        return False # <-- RETURN FALSE IF NOT FOUND
+            return True
+        return False
 
     def save_config(self, file_path: str):
         """Saves the current configuration data to a file."""
+        # We only need to save the maps that can be modified
         self._config_data["secret_code_map"] = self._secret_code_map
         self._config_data["admins"] = self._admins
-        self._config_data["line_user_map"] = self._line_user_map
+        # No longer saving line_user_map
+        # self._config_data["line_user_map"] = self._line_user_map
 
         with open(file_path, 'w') as f:
             json.dump(self._config_data, f, indent=2)
