@@ -87,6 +87,28 @@ def step_impl(context, expected_reply):
     actual_reply_text = reply_request.messages[0].text
     assert actual_reply_text == expected_reply, f"Expected reply '{expected_reply}', but got '{actual_reply_text}'"
 
+@then('the bot should reply with a list of all secret codes')
+def step_impl(context):
+    """
+    Checks that the bot sent a reply and that the reply contains
+    the expected format and content for a list of codes.
+    """
+    # 1. Check that a reply was sent
+    context.mock_line_api.reply_message.assert_called_once()
+    
+    # 2. Extract the actual reply text
+    reply_request = context.mock_line_api.reply_message.call_args[0][0]
+    actual_reply_text = reply_request.messages[0].text
+
+    # 3. Verify the content of the reply
+    # We check for key parts instead of the exact string to make the test more robust.
+    assert "Available Secret Codes:" in actual_reply_text
+    
+    # Check for at least one known code from our test config to ensure it's listing them.
+    # From config.json.template
+    assert "#s1 -> Group_A_Photos" in actual_reply_text
+    assert "#s2 -> Group_B_Photos" in actual_reply_text
+
 @then('the secret code "{code}" should now be mapped to the group "{group}"')
 def step_impl(context, code, group):
     with open(CONFIG_FILE_PATH, 'r') as f:
