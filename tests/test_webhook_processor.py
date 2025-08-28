@@ -46,7 +46,56 @@ def mock_line_bot_api():
     api_mock.reply_message = AsyncMock()
     return api_mock
 
-# --- NEW AND UPDATED TESTS FOR SESSION LOGIC ---
+@pytest.mark.asyncio
+async def test_any_user_can_list_codes(
+    mock_config_manager, mock_state_manager, mock_line_bot_api
+):
+    """Test: Any user (admin or not) can list all secret codes."""
+    command_text = "list codes"
+    text_message = TextMessageContent(id="list_msg_1", text=command_text, quote_token="q_token_list")
+    event = create_mock_event("U_ANY_USER", text_message, reply_token="list_reply_token")
+
+    # --- Setup the mock to return some codes ---
+    mock_config_manager.get_all_secret_codes.return_value = {
+        "#s1": "Group_A",
+        "#s2": "Group_B"
+    }
+
+    await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
+
+    # 1. Verify that the correct method was called to get the data
+    mock_config_manager.get_all_secret_codes.assert_called_once()
+
+    # 2. Verify that a reply was sent
+    mock_line_bot_api.reply_message.assert_called_once()
+
+    # 3. (Optional but good) Verify the content of the reply
+    # We capture the arguments passed to the mock call
+    reply_request = mock_line_bot_api.reply_message.call_args[0][0]
+    actual_reply_text = reply_request.messages[0].text
+
+    assert "Available Secret Codes" in actual_reply_text
+    assert "#s1 -> Group_A" in actual_reply_text
+    assert "#s2 -> Group_B" in actual_reply_text
+
+@pytest.mark.asyncio
+async def test_list_codes_when_no_codes_exist(
+    mock_config_manager, mock_state_manager, mock_line_bot_api
+):
+    """Test: The reply is correct when no secret codes are configured."""
+    command_text = "list codes"
+    text_message = TextMessageContent(id="list_msg_2", text=command_text, quote_token="q_token_list_empty")
+    event = create_mock_event("U_ANY_USER", text_message, reply_token="list_reply_token_empty")
+
+    # --- Setup the mock to return an empty dictionary ---
+    mock_config_manager.get_all_secret_codes.return_value = {}
+
+    await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
+
+    mock_line_bot_api.reply_message.assert_called_once()
+    reply_request = mock_line_bot_api.reply_message.call_args[0][0]
+    actual_reply_text = reply_request.messages[0].text
+    assert "No secret codes are currently configured." in actual_reply_text
 
 @pytest.mark.asyncio
 async def test_handles_secret_code_and_starts_session(
