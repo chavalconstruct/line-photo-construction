@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Response
 import os
 import json
 from dotenv import load_dotenv
@@ -59,6 +59,10 @@ parser = WebhookParser(channel_secret)
 def read_root():
     # This is a test comment for the CI/CD pipeline.
     return {"message": "Stateful Image Upload Service is running"}
+
+@app.head("/")
+def head_root():
+    return Response(status_code=200)
 
 @app.api_route("/health", methods=["GET", "HEAD"], status_code=200)
 def health_check():
