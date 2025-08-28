@@ -1,0 +1,12 @@
+{
+  "secret_code_map": {
+    "#s1": "Group_A_Photos",
+    "#s2": "Group_B_Photos",
+    "#prj_x": "Project_X_Snaps",
+    "#s3": "Group_C_New"
+  },
+  "admins": [
+    "U20c16d65fe1914fa6fb9570bb9410c00",
+    "U123_Admin"
+  ]
+}
