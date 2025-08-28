@@ -15,7 +15,6 @@ def parse_command(text: str) -> Optional[Dict[str, str]]:
     text = text.strip()
 
     # Pattern for "add code <code> for group <group>"
-    # It's case-insensitive (?i)
     add_pattern = re.compile(
         r"add\s+code\s+([#\w-]+)\s+for\s+group\s+([\w_]+)", re.IGNORECASE
     )
@@ -24,6 +23,11 @@ def parse_command(text: str) -> Optional[Dict[str, str]]:
     remove_pattern = re.compile(
         r"remove\s+code\s+([#\w-]+)", re.IGNORECASE
     )
+
+    # --- NEW PATTERN ---
+    # Pattern for "list codes"
+    list_pattern = re.compile(r"list\s+codes", re.IGNORECASE)
+    # -------------------
 
     # Check for 'add' command
     match = add_pattern.fullmatch(text)
@@ -34,6 +38,13 @@ def parse_command(text: str) -> Optional[Dict[str, str]]:
     match = remove_pattern.fullmatch(text)
     if match:
         return {"action": "remove", "code": match.group(1)}
+
+    # --- NEW LOGIC ---
+    # Check for 'list' command
+    match = list_pattern.fullmatch(text)
+    if match:
+        return {"action": "list"}
+    # -----------------
 
     # If no patterns match, it's not a command
     return None

@@ -25,11 +25,25 @@ def test_parse_remove_command_with_different_casing():
     expected = {'action': 'remove', 'code': '#s-old'}
     assert parse_command(text) == expected
 
+# --- NEW TEST CASE ---
+def test_parse_list_command():
+    """Tests parsing a valid 'list' command."""
+    text = "list codes"
+    expected = {'action': 'list'}
+    assert parse_command(text) == expected
+
+def test_parse_list_command_with_different_casing():
+    """Tests case-insensitivity for the 'list' command."""
+    text = "List Codes"
+    expected = {'action': 'list'}
+    assert parse_command(text) == expected
+# --------------------
+
 def test_parse_invalid_command_format():
     """Tests that malformed commands return None."""
-    assert parse_command("add code #s-new") is None  # Missing 'for group'
-    assert parse_command("remove #s-old") is None      # Missing 'code'
-    assert parse_command("delete code #s-old") is None # Invalid action
+    assert parse_command("add code #s-new") is None
+    assert parse_command("remove #s-old") is None
+    assert parse_command("delete code #s-old") is None
 
 def test_parse_non_command_text():
     """Tests that regular text or secret codes are not parsed as commands."""
