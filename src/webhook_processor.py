@@ -30,37 +30,29 @@ async def download_image_content(image_message_id: str, channel_access_token: st
         logger.error(f"Error fetching image content: {e}")
         return None
 
-# --- REFACTORED: Renamed from handle_admin_command to handle_command ---
 async def handle_command(command: dict, user_id: str, config_manager: ConfigManager, line_bot_api: AsyncMessagingApi, event: MessageEvent):
-    """Processes a parsed command dictionary."""
+    # ... (this function remains unchanged)
+    # ... (เนื้อหาฟังก์ชัน handle_command เหมือนเดิม)
     action = command.get("action")
-
-    # --- NEW: Handle 'list' command first, as it's for everyone ---
     if action == "list":
         all_codes = config_manager.get_all_secret_codes()
         if not all_codes:
             reply_text = "No secret codes are currently configured."
         else:
-            # Format the codes into a readable string
             header = "Available Secret Codes:\n"
             lines = [f"- {code} -> {group}" for code, group in all_codes.items()]
             reply_text = header + "\n".join(lines)
-        
         logger.info(f"User {user_id} listed all codes.")
-    
-    # --- Admin commands are now checked for permission here ---
     elif action in ["add", "remove"]:
         if not config_manager.is_admin(user_id):
             reply_text = "Error: You do not have permission to use this command."
             logger.warning(f"Non-admin user {user_id} attempted to use command '{action}'.")
-        
         elif action == "add":
             code, group = command["code"], command["group"]
             config_manager.add_secret_code(code, group)
             config_manager.save_config(CONFIG_FILE)
             reply_text = f"Success: Code {code} has been added for group {group}."
             logger.info(f"Admin {user_id} added code {code} for group {group}.")
-        
         elif action == "remove":
             code = command["code"]
             was_removed = config_manager.remove_secret_code(code)
@@ -74,13 +66,13 @@ async def handle_command(command: dict, user_id: str, config_manager: ConfigMana
     else:
         reply_text = "Error: Unknown command."
         logger.error(f"Unknown command action '{action}' from user {user_id}.")
-
     await line_bot_api.reply_message(
         ReplyMessageRequest(
             reply_token=event.reply_token,
             messages=[TextMessage(text=reply_text)]
         )
     )
+
 
 async def process_webhook_event(
     event: MessageEvent,
@@ -92,25 +84,33 @@ async def process_webhook_event(
 ):
     if not event.source or not event.source.user_id:
         return
+    
+    # --- THIS IS THE KEY CHANGE ---
+    # We get user_id directly from the event source.
     user_id = event.source.user_id
+
+    # Handle text messages (potential commands or secret codes)
     if isinstance(event.message, TextMessageContent):
         text = event.message.text
         command = parse_command(text)
+        
         if command:
-            # --- UPDATED: Call the refactored function ---
             await handle_command(command, user_id, config_manager, line_bot_api, event)
             return
         
+        # Check if the text is a secret code
         group = config_manager.get_group_from_secret_code(text)
         if group:
+            # If it's a code, start a session for THIS user
             state_manager.set_pending_upload(user_id, group)
             logger.info(f"Upload session started for user {user_id} to group '{group}'.")
         else:
             logger.info(f"Received non-code, non-command text from {user_id}. Ignoring.")
 
+    # Handle image messages
     elif isinstance(event.message, ImageMessageContent):
-        # --- THIS IS THE NEW SESSION LOGIC ---
-        # Check for an active session instead of consuming a one-time state
+        # --- NEW DYNAMIC SESSION LOGIC ---
+        # Check for an active session for THIS user
         active_group = state_manager.get_active_group(user_id)
         
         if active_group:
@@ -123,7 +123,8 @@ async def process_webhook_event(
                 file_name = f"{event.message.id}.jpg"
                 gdrive_service.upload_file(file_name, image_content, folder_id)
                 
-                # Refresh the session to keep it alive for the next image
+                # Keep the session alive after a successful upload
                 state_manager.refresh_session(user_id)
         else:
+            # If no active session, ignore the image
             logger.warning(f"Image received from user {user_id} but they have no active session. Ignoring.")
