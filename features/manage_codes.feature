@@ -22,3 +22,13 @@ Feature: Manage secret codes via chat commands as an admin
     Given the system is configured with "U123_Admin" as an admin user
     When admin user "U123_Admin" sends the message "remove code #code_that_does_not_exist"
     Then the bot should reply with "Error: Code #code_that_does_not_exist was not found and could not be removed."
+
+  Scenario: Any user (non-admin) can list all available secret codes
+    Given the system is configured with "U456_NormalUser" as a non-admin user
+    When non-admin user "U456_NormalUser" sends the message "list codes"
+    Then the bot should reply with a list of all secret codes
+
+  Scenario: Any user (admin) can also list all available secret codes
+    Given the system is configured with "U123_Admin" as an admin user
+    When admin user "U123_Admin" sends the message "list codes"
+    Then the bot should reply with a list of all secret codes
