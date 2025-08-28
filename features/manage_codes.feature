@@ -25,10 +25,10 @@ Feature: Manage secret codes via chat commands as an admin
 
   Scenario: Any user (non-admin) can list all available secret codes
     Given the system is configured with "U456_NormalUser" as a non-admin user
-    When non-admin user "U456_NormalUser" sends the message "list codes"
+    When non-admin user "U456_NormalUser" sends the message "!"
     Then the bot should reply with a list of all secret codes
 
   Scenario: Any user (admin) can also list all available secret codes
     Given the system is configured with "U123_Admin" as an admin user
-    When admin user "U123_Admin" sends the message "list codes"
+    When admin user "U123_Admin" sends the message "!"
     Then the bot should reply with a list of all secret codes
