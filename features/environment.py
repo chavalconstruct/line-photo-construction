@@ -4,7 +4,6 @@ import json
 from unittest.mock import patch, AsyncMock
 from src.state_manager import StateManager
 
-# --- NEW: Define paths for the template and the active config ---
 CONFIG_TEMPLATE_PATH = "config.json.template"
 CONFIG_FILE_PATH = "config.json"
 
@@ -24,6 +23,7 @@ def before_scenario(context, scenario):
     Runs before each scenario.
     """
     context.state_manager = StateManager()
+    context.time_patcher = None 
 
     if context.feature_name == "management":
         # --- THIS IS THE NEW ROBUST SETUP ---
@@ -36,11 +36,13 @@ def before_scenario(context, scenario):
         # ------------------------------------
 
     elif context.feature_name == "line_integration":
+        context.config_data = {"secret_code_map": {}}
         context.patcher_gdrive = patch('src.webhook_processor.GoogleDriveService')
         context.patcher_download = patch('src.webhook_processor.download_image_content', new_callable=AsyncMock)
         MockGoogleDriveService = context.patcher_gdrive.start()
         context.mock_gdrive_service = MockGoogleDriveService.return_value
         context.mock_download = context.patcher_download.start()
+        context.mock_gdrive_service.find_or_create_folder.return_value = "dummy_folder_id"
     
     elif context.feature_name == "classification":
         if os.path.exists("Group A"): shutil.rmtree("Group A")
@@ -54,4 +56,7 @@ def after_scenario(context, scenario):
     if context.feature_name == "line_integration":
         context.patcher_gdrive.stop()
         context.patcher_download.stop()
-    # No cleanup needed for 'management' as 'before_scenario' handles it.
+    
+    # Ensure any stray time patchers are stopped after the scenario
+    if hasattr(context, 'time_patcher') and context.time_patcher:
+        context.time_patcher.stop()
