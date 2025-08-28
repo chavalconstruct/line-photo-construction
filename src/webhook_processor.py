@@ -31,7 +31,7 @@ async def download_image_content(image_message_id: str, channel_access_token: st
         return None
 
 async def handle_admin_command(command: dict, user_id: str, config_manager: ConfigManager, line_bot_api: AsyncMessagingApi, event: MessageEvent):
-    """Processes a parsed command dictionary."""
+    # ... (this function remains unchanged)
     if not config_manager.is_admin(user_id):
         reply_text = "Error: You do not have permission to use this command."
         logger.warning(f"Non-admin user {user_id} attempted to use a command.")
@@ -45,7 +45,6 @@ async def handle_admin_command(command: dict, user_id: str, config_manager: Conf
             logger.info(f"Admin {user_id} added code {code} for group {group}.")
         elif action == "remove":
             code = command["code"]
-            # --- THIS IS THE NEW LOGIC ---
             was_removed = config_manager.remove_secret_code(code)
             if was_removed:
                 config_manager.save_config(CONFIG_FILE)
@@ -54,7 +53,6 @@ async def handle_admin_command(command: dict, user_id: str, config_manager: Conf
             else:
                 reply_text = f"Error: Code {code} was not found and could not be removed."
                 logger.warning(f"Admin {user_id} tried to remove non-existent code {code}.")
-            # ---------------------------
         else:
             reply_text = "Error: Unknown command."
             logger.error(f"Unknown command action '{action}' from admin {user_id}.")
@@ -74,28 +72,43 @@ async def process_webhook_event(
     channel_access_token: str,
     parent_folder_id: Optional[str]
 ):
-    # ... (this function remains unchanged)
     if not event.source or not event.source.user_id:
         return
     user_id = event.source.user_id
+
     if isinstance(event.message, TextMessageContent):
         text = event.message.text
         command = parse_command(text)
         if command:
+            # Handle admin commands as before
             await handle_admin_command(command, user_id, config_manager, line_bot_api, event)
             return
+
         group = config_manager.get_group_from_secret_code(text)
         if group:
+            # This is a secret code. Start the session.
             state_manager.set_pending_upload(user_id, group)
+            # DO NOT send a reply message to the user.
+            logger.info(f"Upload session started for user {user_id} to group '{group}'.")
         else:
             logger.info(f"Received non-code, non-command text from {user_id}. Ignoring.")
+
     elif isinstance(event.message, ImageMessageContent):
-        # ... (logic for image messages remains the same)
-        pending_group = state_manager.consume_pending_upload(user_id)
-        if pending_group:
+        # --- THIS IS THE NEW SESSION LOGIC ---
+        # Check for an active session instead of consuming a one-time state
+        active_group = state_manager.get_active_group(user_id)
+        
+        if active_group:
+            logger.info(f"Image received from user {user_id} with active session for group '{active_group}'.")
             image_content = await download_image_content(event.message.id, channel_access_token)
+            
             if image_content:
                 gdrive_service = GoogleDriveService()
-                folder_id = gdrive_service.find_or_create_folder(pending_group, parent_folder_id=parent_folder_id)
+                folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id=parent_folder_id)
                 file_name = f"{event.message.id}.jpg"
                 gdrive_service.upload_file(file_name, image_content, folder_id)
+                
+                # Refresh the session to keep it alive for the next image
+                state_manager.refresh_session(user_id)
+        else:
+            logger.warning(f"Image received from user {user_id} but they have no active session. Ignoring.")

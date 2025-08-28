@@ -24,24 +24,33 @@ jobs:
       - name: Run unit tests with pytest
         run: pytest
 
-      # --- ADD THIS NEW STEP ---
-      - name: Create test config for Behave tests
+      - name: Create test config template for Behave tests
         run: |
-          cat <<EOF > config.json
+          # This step creates the template file that our test setup (environment.py)
+          # will use as a source to create a fresh config.json for each scenario.
+          cat <<EOF > config.json.template
           {
             "secret_code_map": {
               "#s1": "Group_A_Photos",
-              "#s2": "Group_B_Photos"
+              "#s2": "Group_B_Photos",
+              "#prj_x": "Project_X_Snaps",
+              "#s3": "Group_C_New"
             },
             "line_user_map": {
+              "U12345": "Alice",
+              "U67890": "Bob",
+              "U1f68f8c0045d25cfdca3110bc6ca7a3a": "Jod",
+              "U20c16d65fe1914fa6fb9570bb9410c00": "Construct",
               "U123_Admin": "AdminUser",
               "U456_NormalUser": "NormalUser"
             },
             "admins": [
+              "U20c16d65fe1914fa6fb9570bb9410c00",
               "U123_Admin"
             ]
           }
           EOF
+          echo "config.json.template created successfully."
       # -------------------------
 
       - name: Run behavior tests with behave

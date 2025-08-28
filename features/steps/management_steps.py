@@ -1,6 +1,7 @@
 import json
 from behave import *
 from unittest.mock import AsyncMock, patch, MagicMock
+import copy # <-- IMPORT THE COPY MODULE
 
 # We need to re-import our test helpers
 from tests.test_webhook_processor import create_mock_event
@@ -48,11 +49,18 @@ def user_sends_message(context, user_id, message_text):
     text_message = TextMessageContent(id="bdd_msg", text=message_text, quote_token="bdd_q_token")
     event = create_mock_event(user_id, text_message, reply_token="bdd_reply_token")
 
+    # --- THIS IS THE FIX ---
+    # We pass a DEEP COPY of the config data to the manager.
+    # This prevents the manager from accidentally modifying the original
+    # dictionary in memory, ensuring true test isolation.
+    isolated_config_manager = ConfigManager(copy.deepcopy(config_data))
+    # ---------------------
+
     # Run the actual event processor
     asyncio.run(process_webhook_event(
         event=event,
         state_manager=context.state_manager,
-        config_manager=ConfigManager(config_data),
+        config_manager=isolated_config_manager, # <-- Use the new isolated manager
         line_bot_api=mock_line_api,
         channel_access_token="dummy_token",
         parent_folder_id=None
