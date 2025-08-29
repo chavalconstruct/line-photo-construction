@@ -102,12 +102,12 @@ def step_impl(context):
 
     # 3. Verify the content of the reply
     # We check for key parts instead of the exact string to make the test more robust.
-    assert "Available Secret Codes:" in actual_reply_text
+    assert "รายชื่อไซต์ก่อสร้าง:" in actual_reply_text
     
     # Check for at least one known code from our test config to ensure it's listing them.
     # From config.json.template
-    assert "#s1 -> Group_A_Photos" in actual_reply_text
-    assert "#s2 -> Group_B_Photos" in actual_reply_text
+    assert "#s1  Group_A_Photos" in actual_reply_text
+    assert "#s2  Group_B_Photos" in actual_reply_text
 
 @then('the secret code "{code}" should now be mapped to the group "{group}"')
 def step_impl(context, code, group):
