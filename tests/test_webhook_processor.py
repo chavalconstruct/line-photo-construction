@@ -108,7 +108,7 @@ async def test_ignores_image_when_no_active_session(
     mock_gdrive_service_class.return_value.upload_file.assert_not_called()
     mock_state_manager.refresh_session.assert_not_called()
 
-    @pytest.mark.asyncio
+@pytest.mark.asyncio
 @patch('src.webhook_processor.redis_client') # <-- Mock redis_client
 @patch('src.webhook_processor.GoogleDriveService')
 @patch('src.webhook_processor.download_image_content')
