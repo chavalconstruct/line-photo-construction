@@ -12,6 +12,8 @@ from src.google_drive_uploader import GoogleDriveService
 from src.command_parser import parse_command
 import redis
 import os
+import aiohttp
+import asyncio
 
 logger = logging.getLogger(__name__)
 CONFIG_FILE = "config.json"
@@ -31,20 +33,29 @@ else:
     logger.warning("REDIS_URL not found. Redis client is not initialized. (This is normal for local testing without Redis)")
 
 async def download_image_content(image_message_id: str, channel_access_token: str) -> Optional[bytes]:
-    # ... (this function remains unchanged)
     headers = {"Authorization": f"Bearer {channel_access_token}"}
     image_url = f"https://api-data.line.me/v2/bot/message/{image_message_id}/content"
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(image_url, headers=headers) as resp:
-                if resp.status == 200:
-                    return await resp.read()
-                else:
-                    logger.error(f"❌ Failed to fetch image. Status: {resp.status}, Response: {await resp.text()}")
-                    return None
-    except Exception as e:
-        logger.error(f"Error fetching image content: {e}")
-        return None
+    
+    # --- FIX: สร้าง Session นอก Loop ---
+    async with aiohttp.ClientSession() as session:
+        for attempt in range(3):
+            try:
+                async with session.get(image_url, headers=headers) as resp:
+                    if resp.status == 200:
+                        return await resp.read()
+                    else:
+                        logger.error(f"❌ Failed to fetch image. Status: {resp.status}, Response: {await resp.text()}")
+                        return None 
+            except aiohttp.ClientError as e:
+                logger.warning(f"⚠️ Attempt {attempt + 1}/3 failed to download image due to a connection error: {e}")
+                if attempt < 2:
+                    await asyncio.sleep(1)
+            except Exception as e:
+                logger.error(f"An unexpected error occurred while fetching image content: {e}")
+                return None
+            
+    logger.error(f"❌ Failed to download image after 3 attempts for message ID {image_message_id}.")
+    return None
 
 async def handle_command(command: dict, user_id: str, config_manager: ConfigManager, line_bot_api: AsyncMessagingApi, event: MessageEvent):
     # ... (this function remains unchanged)
