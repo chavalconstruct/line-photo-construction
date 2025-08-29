@@ -6,12 +6,15 @@ from src.config_manager import ConfigManager
 import aiohttp
 import os
 from linebot.v3.webhooks import (
-    MessageEvent,
+    MessageEvent, 
     TextMessageContent,
     ImageMessageContent,
     UserSource,
     DeliveryContext,
     ContentProvider,
+    MemberLeftEvent,
+    GroupSource,
+    LeftMembers
 )
 
 # Helper function remains the same
@@ -198,3 +201,37 @@ async def test_download_image_with_retry_on_connection_error(mock_session_get):
     # 5. Assert: Verify the outcome
     assert result == b'successful-image-bytes'
     assert mock_session_get.call_count == 2
+
+# The test case now has the classes it needs
+@pytest.mark.asyncio
+async def test_ignores_non_message_event_gracefully(
+    mock_config_manager, mock_state_manager, mock_line_bot_api
+):
+    """
+    Tests that a non-MessageEvent is ignored gracefully without crashing.
+    """
+    # This code will now work correctly
+    member_left_event = MemberLeftEvent(
+        source=GroupSource(group_id="G123"), # user_id is not needed here
+        left=LeftMembers(members=[UserSource(user_id="U123")]),
+        timestamp=1673377200000,
+        mode="active",
+        webhook_event_id="01GA0000000000000000000000000000",
+        delivery_context=DeliveryContext(is_redelivery=False)
+    )
+
+    try:
+        await process_webhook_event(
+            member_left_event,
+            mock_state_manager,
+            mock_config_manager,
+            mock_line_bot_api,
+            "dummy_token",
+            "dummy_parent_id"
+        )
+    except AttributeError:
+        pytest.fail("process_webhook_event crashed with AttributeError on a non-message event.")
+
+    # Assert that no message-related functions were called
+    mock_state_manager.set_pending_upload.assert_not_called()
+    mock_state_manager.get_active_group.assert_not_called()
