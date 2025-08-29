@@ -107,3 +107,27 @@ async def test_ignores_image_when_no_active_session(
     mock_download.assert_not_called()
     mock_gdrive_service_class.return_value.upload_file.assert_not_called()
     mock_state_manager.refresh_session.assert_not_called()
+
+    @pytest.mark.asyncio
+@patch('src.webhook_processor.redis_client') # <-- Mock redis_client
+@patch('src.webhook_processor.GoogleDriveService')
+@patch('src.webhook_processor.download_image_content')
+async def test_ignores_duplicate_event_id(
+    mock_download, mock_gdrive_service_class, mock_redis_client,
+    mock_config_manager, mock_state_manager, mock_line_bot_api
+):
+    """
+    Tests that if redis_client.set returns False (duplicate event),
+    the function exits early and does not process the image.
+    """
+    mock_redis_client.set.return_value = False
+
+    image_message = ImageMessageContent(id="duplicate_msg_id", quote_token="q_token_dup", content_provider=ContentProvider(type="line"))
+    event = create_mock_event("U123_any_user", image_message)
+
+    await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
+
+    mock_redis_client.set.assert_called_once_with("line_msg_duplicate_msg_id", "processed", nx=True, ex=60)
+    mock_download.assert_not_called()
+    mock_gdrive_service_class.return_value.upload_file.assert_not_called()
+    mock_state_manager.get_active_group.assert_not_called()
