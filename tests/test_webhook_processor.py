@@ -131,3 +131,33 @@ async def test_ignores_duplicate_event_id(
     mock_download.assert_not_called()
     mock_gdrive_service_class.return_value.upload_file.assert_not_called()
     mock_state_manager.get_active_group.assert_not_called()
+
+@pytest.mark.asyncio
+@patch('src.webhook_processor.redis_client', None) # <-- Mock redis_client is None
+@patch('src.webhook_processor.GoogleDriveService')
+@patch('src.webhook_processor.download_image_content')
+async def test_processes_image_normally_when_redis_is_unavailable(
+    mock_download, mock_gdrive_service_class,
+    mock_config_manager, mock_state_manager, mock_line_bot_api
+):
+    """
+    Tests that the system still processes an image upload
+    when the Redis client is not available (is None).
+    This documents the current fallback behavior.
+    """
+    
+    mock_state_manager.get_active_group.return_value = "Group_A"
+    mock_download.return_value = b'fake-image-bytes'
+    mock_gdrive_instance = mock_gdrive_service_class.return_value
+
+    image_message = ImageMessageContent(id="msg_xyz", quote_token="q_token_4", content_provider=ContentProvider(type="line"))
+    event = create_mock_event("U123_no_redis_user", image_message)
+
+   
+    await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
+
+   
+    mock_state_manager.get_active_group.assert_called_once_with("U123_no_redis_user")
+    mock_download.assert_called_once()
+    mock_gdrive_instance.upload_file.assert_called_once()
+    mock_state_manager.refresh_session.assert_called_once_with("U123_no_redis_user")
