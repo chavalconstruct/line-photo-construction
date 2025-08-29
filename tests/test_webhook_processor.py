@@ -12,6 +12,9 @@ from linebot.v3.webhooks import (
     UserSource,
     DeliveryContext,
     ContentProvider,
+    MemberLeftEvent,
+    GroupSource,
+    LeftMembers
 )
 
 # Helper function remains the same
@@ -199,6 +202,7 @@ async def test_download_image_with_retry_on_connection_error(mock_session_get):
     assert result == b'successful-image-bytes'
     assert mock_session_get.call_count == 2
 
+# The test case now has the classes it needs
 @pytest.mark.asyncio
 async def test_ignores_non_message_event_gracefully(
     mock_config_manager, mock_state_manager, mock_line_bot_api
@@ -206,10 +210,10 @@ async def test_ignores_non_message_event_gracefully(
     """
     Tests that a non-MessageEvent is ignored gracefully without crashing.
     """
-    # Create a mock MemberLeftEvent which has no 'message' attribute
+    # This code will now work correctly
     member_left_event = MemberLeftEvent(
-        source=GroupSource(group_id="G123", user_id="U123"),
-        left=Left(members=[UserSource(user_id="U123")]),
+        source=GroupSource(group_id="G123"), # user_id is not needed here
+        left=LeftMembers(members=[UserSource(user_id="U123")]),
         timestamp=1673377200000,
         mode="active",
         webhook_event_id="01GA0000000000000000000000000000",
