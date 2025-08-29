@@ -98,6 +98,17 @@ async def process_webhook_event(
     channel_access_token: str,
     parent_folder_id: Optional[str]
 ):
+    if redis_client:
+        
+        message_id = event.message.id
+        redis_key = f"line_msg_{message_id}"
+
+        # nx=True: set a value only if the key does not exist
+        # ex=60: set an expiration time of 60 seconds
+        if not redis_client.set(redis_key, "processed", nx=True, ex=60):
+            logger.warning(f"⚠️ Duplicate event received: message_id={message_id}. Ignoring.")
+            return 
+        
     if not event.source or not event.source.user_id:
         return
     
