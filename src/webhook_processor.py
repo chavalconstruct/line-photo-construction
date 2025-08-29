@@ -109,6 +109,11 @@ async def process_webhook_event(
     channel_access_token: str,
     parent_folder_id: Optional[str]
 ):
+    
+    if not isinstance(event, MessageEvent):
+        logger.info(f"Received non-message event: {type(event).__name__}. Ignoring.")
+        return
+    
     if redis_client:
         
         message_id = event.message.id
