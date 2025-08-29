@@ -1,8 +1,10 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from src.webhook_processor import process_webhook_event
+from src.webhook_processor import process_webhook_event, download_image_content
 from src.state_manager import StateManager
 from src.config_manager import ConfigManager
+import aiohttp
+import os
 from linebot.v3.webhooks import (
     MessageEvent,
     TextMessageContent,
@@ -161,3 +163,38 @@ async def test_processes_image_normally_when_redis_is_unavailable(
     mock_download.assert_called_once()
     mock_gdrive_instance.upload_file.assert_called_once()
     mock_state_manager.refresh_session.assert_called_once_with("U123_no_redis_user")
+
+@pytest.mark.asyncio
+# 1. Change the patch target to be more specific
+@patch('src.webhook_processor.aiohttp.ClientSession.get')
+async def test_download_image_with_retry_on_connection_error(mock_session_get):
+    """
+    Tests that download_image_content retries on a connection error
+    and succeeds on the second attempt.
+    """
+    # 2. Arrange: Create the required objects for the side_effect
+    
+    # The successful response mock (must be a valid async context manager)
+    mock_response_successful = AsyncMock()
+    mock_response_successful.status = 200
+    mock_response_successful.read = AsyncMock(return_value=b'successful-image-bytes')
+    mock_response_successful.__aenter__.return_value = mock_response_successful
+    mock_response_successful.__aexit__ = AsyncMock(return_value=None)
+    
+    # The error to be raised on the first attempt
+    mock_connection_key = MagicMock() 
+    os_error = OSError(101, "Simulated Network is unreachable")
+    connector_error = aiohttp.ClientConnectorError(mock_connection_key, os_error)
+
+    # 3. Configure the side_effect directly on the mocked 'get' method
+    mock_session_get.side_effect = [
+        connector_error,          # First call: raise the error
+        mock_response_successful, # Second call: return the successful response mock
+    ]
+
+    # 4. Act: Call the function under test
+    result = await download_image_content("any_image_id", "dummy_token")
+
+    # 5. Assert: Verify the outcome
+    assert result == b'successful-image-bytes'
+    assert mock_session_get.call_count == 2
