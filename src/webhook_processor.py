@@ -10,9 +10,25 @@ from src.state_manager import StateManager
 from src.config_manager import ConfigManager
 from src.google_drive_uploader import GoogleDriveService
 from src.command_parser import parse_command
+import redis
+import os
 
 logger = logging.getLogger(__name__)
 CONFIG_FILE = "config.json"
+
+redis_client = None
+redis_url = os.getenv('REDIS_URL')
+
+if redis_url:
+    try:
+        redis_client = redis.from_url(redis_url, decode_responses=True)
+        redis_client.ping()
+        logger.info("✅ Successfully connected to Redis.")
+    except redis.exceptions.ConnectionError as e:
+        logger.error(f"❌ Failed to connect to Redis: {e}")
+        redis_client = None
+else:
+    logger.warning("REDIS_URL not found. Redis client is not initialized. (This is normal for local testing without Redis)")
 
 async def download_image_content(image_message_id: str, channel_access_token: str) -> Optional[bytes]:
     # ... (this function remains unchanged)
