@@ -39,8 +39,8 @@ async def handle_command(command: dict, user_id: str, config_manager: ConfigMana
         if not all_codes:
             reply_text = "No secret codes are currently configured."
         else:
-            header = "Available Secret Codes:\n"
-            lines = [f"- {code} -> {group}" for code, group in all_codes.items()]
+            header = "รายชื่อไซต์ก่อสร้าง:\n"
+            lines = [f"{code}  {group}" for code, group in all_codes.items()]
             reply_text = header + "\n".join(lines)
         logger.info(f"User {user_id} listed all codes.")
     elif action in ["add", "remove"]:
