@@ -143,14 +143,40 @@ async def process_webhook_event(
             await handle_command(command, user_id, config_manager, line_bot_api, event)
             return
         
-        # Check if the text is a secret code
-        group = config_manager.get_group_from_secret_code(text)
+        # --- NEW NOTE-TAKING LOGIC ---
+        
+        # Check if text contains a secret code at the beginning
+        parts = text.split(maxsplit=1)
+        secret_code = parts[0]
+        note = parts[1] if len(parts) > 1 else None
+        
+        group = config_manager.get_group_from_secret_code(secret_code)
+
         if group:
-            # If it's a code, start a session for THIS user
+            # It's a valid secret code, start/reset a session
             state_manager.set_pending_upload(user_id, group)
             logger.info(f"Upload session started for user {user_id} to group '{group}'.")
+            
+            if note:
+                # If there was a note attached, process it immediately
+                gdrive_service = GoogleDriveService()
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                daily_log_filename = f"{today_str}_notes.txt"
+                group_folder_id = gdrive_service.find_or_create_folder(group, parent_folder_id)
+                gdrive_service.append_text_to_file(daily_log_filename, note, group_folder_id)
+                state_manager.refresh_session(user_id) # Keep session alive
         else:
-            logger.info(f"Received non-code, non-command text from {user_id}. Ignoring.")
+            # If not a command or new session, check for an active session for a note
+            active_group = state_manager.get_active_group(user_id)
+            if active_group:
+                gdrive_service = GoogleDriveService()
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                daily_log_filename = f"{today_str}_notes.txt"
+                group_folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id)
+                gdrive_service.append_text_to_file(daily_log_filename, text, group_folder_id)
+                state_manager.refresh_session(user_id)
+            else:
+                logger.info(f"Received non-code, non-command text from {user_id} with no active session. Ignoring.")
 
     # Handle image messages
     elif isinstance(event.message, ImageMessageContent):
