@@ -11,6 +11,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import shutil
 import dotenv
+from datetime import datetime
 
 dotenv.load_dotenv()
 
@@ -106,3 +107,32 @@ class GoogleDriveService:
         
         logging.info(f"File '{file_name}' uploaded successfully with ID: {response.get('id')}")
         return response.get('id')
+    
+    def append_text_to_file(self, file_name, text_to_append, folder_id):
+        """
+        Appends a line of text to a file in Google Drive. If the file
+        doesn't exist, it creates it.
+        """
+        # Search for the file first
+        query = f"name='{file_name}' and '{folder_id}' in parents and trashed=false"
+        response = self.service.files().list(q=query, fields='files(id)').execute()
+        files = response.get('files', [])
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        formatted_text = f"[{timestamp}] {text_to_append}"
+
+        if files:
+            # File exists, append content
+            file_id = files[0].get('id')
+            existing_content = self.service.files().get_media(fileId=file_id).execute()
+            new_content = existing_content + b"\n" + formatted_text.encode('utf-8')
+            
+            media = MediaIoBaseUpload(io.BytesIO(new_content), mimetype='text/plain', resumable=True)
+            self.service.files().update(fileId=file_id, media_body=media).execute()
+            logging.info(f"Appended text to existing file '{file_name}'.")
+        else:
+            # File does not exist, create it
+            file_metadata = {'name': file_name, 'parents': [folder_id], 'mimeType': 'text/plain'}
+            media = MediaIoBaseUpload(io.BytesIO(formatted_text.encode('utf-8')), mimetype='text/plain')
+            self.service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            logging.info(f"Created new file '{file_name}' with initial text.")
