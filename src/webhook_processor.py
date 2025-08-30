@@ -143,23 +143,29 @@ async def process_webhook_event(
         
         note_to_save = None
         active_group = None
+        group_from_code = None
+        
+        # 1. More robustly check if the text starts with any known secret code.
+        all_codes = config_manager.get_all_secret_codes()
+        for code in all_codes:
+            if text.startswith(code):
+                group_from_code = all_codes[code]
+                state_manager.set_pending_upload(user_id, group_from_code)
+                active_group = group_from_code
+                
+                # Extract the note by removing the code prefix.
+                note_to_save = text[len(code):].lstrip() # Use lstrip to remove leading space if it exists
+                if not note_to_save: # Handle case where only code is sent
+                    note_to_save = None
 
-        # 1. Check if the text starts with a secret code to begin/reset a session
-        parts = text.split(maxsplit=1)
-        potential_code = parts[0]
-        group_from_code = config_manager.get_group_from_secret_code(potential_code)
+                logger.info(f"Session started/refreshed for user {user_id} to group '{active_group}'.")
+                break # Stop after finding the first match
 
-        if group_from_code:
-            state_manager.set_pending_upload(user_id, group_from_code)
-            active_group = group_from_code
-            logger.info(f"Session started/refreshed for user {user_id} to group '{active_group}'.")
-            if len(parts) > 1:
-                note_to_save = parts[1]  # The note is the rest of the message
-        else:
-            # 2. If not a session starter, check for a pre-existing active session
+        # 2. If no session was started, check for a pre-existing active session.
+        if not group_from_code:
             active_group = state_manager.get_active_group(user_id)
             if active_group:
-                note_to_save = text  # The entire message is treated as a note
+                note_to_save = text
 
         # 3. If we have an active group and a note to save, then save it.
         if active_group and note_to_save:
@@ -171,7 +177,6 @@ async def process_webhook_event(
             group_folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id)
             gdrive_service.append_text_to_file(daily_log_filename, note_to_save, group_folder_id)
             
-            # Keep the session alive after a successful action
             state_manager.refresh_session(user_id)
         elif not group_from_code and not active_group:
              logger.warning(f"Received text from user {user_id} but they have no active session. Ignoring.")

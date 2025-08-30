@@ -32,10 +32,22 @@ def create_mock_event(user_id, message_content, reply_token="dummy_reply_token")
 
 @pytest.fixture
 def mock_config_manager():
-    # We no longer need to mock get_app_user
+    """
+    Provides a mock ConfigManager that is compatible with the latest
+    note-taking and session-starting logic.
+    """
     mock = MagicMock(spec=ConfigManager)
-    mock.get_group_from_secret_code.side_effect = lambda code: "Group_A" if code == "#s1" else None
-    mock.is_admin.side_effect = lambda user_id: True if user_id == "U_ADMIN" else False
+    
+    # FIX: This is the primary fix.
+    # Mock get_all_secret_codes() to return the dictionary our new logic needs.
+    mock.get_all_secret_codes.return_value = {
+        "#s1": "Group_A",
+        "#s2": "Group_B" # Added for completeness
+    }
+    
+    # Mock is_admin for tests that require admin checks.
+    mock.is_admin.return_value = False # Default to False unless specified in a test
+    
     return mock
 
 @pytest.fixture
@@ -61,7 +73,7 @@ async def test_handles_secret_code_and_starts_session(
     
     await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
     
-    # Assert that a session is started for the correct user ID
+    # This assertion will now pass because the mock provides the necessary data.
     mock_state_manager.set_pending_upload.assert_called_once_with("U123_any_user", "Group_A")
     mock_line_bot_api.reply_message.assert_not_called()
 
@@ -338,3 +350,27 @@ async def test_ignores_text_with_no_active_session(
 
     mock_state_manager.get_active_group.assert_called_once_with("U456_no_session")
     mock_gdrive_instance.append_text_to_file.assert_not_called()
+
+@pytest.mark.asyncio
+@patch('src.webhook_processor.GoogleDriveService')
+async def test_handles_secret_code_without_space_before_note(
+    mock_gdrive_service_class, mock_config_manager, mock_state_manager, mock_line_bot_api
+):
+    """
+    Tests that a session is started and the note is correctly extracted
+    even when there is no space between the secret code and the note.
+    """
+    mock_gdrive_instance = mock_gdrive_service_class.return_value
+    text_message = TextMessageContent(id="t4", text="#s1Urgent meeting.", quote_token="q_token_note_4")
+    event = create_mock_event("U789_no_space", text_message)
+
+    await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
+
+    # A session should be started
+    mock_state_manager.set_pending_upload.assert_called_once_with("U789_no_space", "Group_A")
+    # The note should be saved
+    mock_gdrive_instance.append_text_to_file.assert_called_once()
+    # Check that the note text is correctly extracted
+    args, kwargs = mock_gdrive_instance.append_text_to_file.call_args
+    extracted_note = args[1]
+    assert extracted_note == "Urgent meeting."
