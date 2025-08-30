@@ -1,10 +1,11 @@
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock, patch, call
 from src.webhook_processor import process_webhook_event, download_image_content
 from src.state_manager import StateManager
 from src.config_manager import ConfigManager
 import aiohttp
 import os
+from datetime import datetime
 from linebot.v3.webhooks import (
     MessageEvent, 
     TextMessageContent,
@@ -65,20 +66,35 @@ async def test_handles_secret_code_and_starts_session(
     mock_line_bot_api.reply_message.assert_not_called()
 
 @pytest.mark.asyncio
+@patch('src.webhook_processor.datetime')
 @patch('src.webhook_processor.GoogleDriveService')
 @patch('src.webhook_processor.download_image_content')
 async def test_handles_image_when_session_is_active(
-    mock_download, mock_gdrive_service_class, mock_config_manager, mock_state_manager, mock_line_bot_api
+    mock_download, mock_gdrive_service_class, mock_datetime, mock_config_manager, mock_state_manager, mock_line_bot_api
 ):
     """
     Test 2: Tests that receiving an image calls state_manager.get_active_group()
-    and proceeds to upload.
+    and proceeds to upload into a daily subfolder.
     """
     # Arrange: Simulate that a session is active for this user
     mock_state_manager.get_active_group.return_value = "Group_A"
     mock_download.return_value = b'fake-image-bytes'
+    
+    # --- TDD Changes Start Here ---
+
+    # 1. Mock datetime to control the date for our test
+    mock_datetime.now.return_value = datetime(2025, 8, 30)
+    
     mock_gdrive_instance = mock_gdrive_service_class.return_value
     
+    # 2. Use side_effect to return different folder IDs on each call
+    mock_gdrive_instance.find_or_create_folder.side_effect = [
+        "group_folder_id",  # First call returns the main group folder ID
+        "daily_folder_id"   # Second call returns the new daily subfolder ID
+    ]
+    
+    # --- TDD Changes End Here ---
+
     image_message = ImageMessageContent(id="msg_abc", quote_token="q_token_2", content_provider=ContentProvider(type="line"))
     event = create_mock_event("U123_any_user", image_message)
     
@@ -87,9 +103,29 @@ async def test_handles_image_when_session_is_active(
     # Assert that the system checked for an active group with the correct user ID
     mock_state_manager.get_active_group.assert_called_once_with("U123_any_user")
     mock_download.assert_called_once()
-    mock_gdrive_instance.upload_file.assert_called_once()
+
+    # --- TDD Assertion Changes ---
+
+    # 3. Assert that find_or_create_folder was called twice with the correct arguments
+    expected_calls = [
+        call("Group_A", parent_folder_id="dummy_parent_id"),
+        call("2025-08-30", parent_folder_id="group_folder_id")
+    ]
+    mock_gdrive_instance.find_or_create_folder.assert_has_calls(expected_calls)
+    assert mock_gdrive_instance.find_or_create_folder.call_count == 2
+
+    # Assert that upload_file is called with the final daily folder ID
+    mock_gdrive_instance.upload_file.assert_called_once_with(
+        f"{event.message.id}.jpg", 
+        b'fake-image-bytes', 
+        "daily_folder_id"
+    )
+
+    # --- End of Assertion Changes ---
+    
     # Assert that the session was refreshed after upload
     mock_state_manager.refresh_session.assert_called_once_with("U123_any_user")
+
 
 @pytest.mark.asyncio
 @patch('src.webhook_processor.GoogleDriveService')
@@ -154,6 +190,8 @@ async def test_processes_image_normally_when_redis_is_unavailable(
     mock_state_manager.get_active_group.return_value = "Group_A"
     mock_download.return_value = b'fake-image-bytes'
     mock_gdrive_instance = mock_gdrive_service_class.return_value
+    mock_gdrive_instance.find_or_create_folder.return_value = "dummy_folder_id"
+
 
     image_message = ImageMessageContent(id="msg_xyz", quote_token="q_token_4", content_provider=ContentProvider(type="line"))
     event = create_mock_event("U123_no_redis_user", image_message)
