@@ -60,8 +60,6 @@ async def download_image_content(image_message_id: str, channel_access_token: st
     return None
 
 async def handle_command(command: dict, user_id: str, config_manager: ConfigManager, line_bot_api: AsyncMessagingApi, event: MessageEvent):
-    # ... (this function remains unchanged)
-    # ... (เนื้อหาฟังก์ชัน handle_command เหมือนเดิม)
     action = command.get("action")
     if action == "list":
         all_codes = config_manager.get_all_secret_codes()
@@ -143,40 +141,40 @@ async def process_webhook_event(
             await handle_command(command, user_id, config_manager, line_bot_api, event)
             return
         
-        # --- NEW NOTE-TAKING LOGIC ---
-        
-        # Check if text contains a secret code at the beginning
-        parts = text.split(maxsplit=1)
-        secret_code = parts[0]
-        note = parts[1] if len(parts) > 1 else None
-        
-        group = config_manager.get_group_from_secret_code(secret_code)
+        note_to_save = None
+        active_group = None
 
-        if group:
-            # It's a valid secret code, start/reset a session
-            state_manager.set_pending_upload(user_id, group)
-            logger.info(f"Upload session started for user {user_id} to group '{group}'.")
-            
-            if note:
-                # If there was a note attached, process it immediately
-                gdrive_service = GoogleDriveService()
-                today_str = datetime.now().strftime("%Y-%m-%d")
-                daily_log_filename = f"{today_str}_notes.txt"
-                group_folder_id = gdrive_service.find_or_create_folder(group, parent_folder_id)
-                gdrive_service.append_text_to_file(daily_log_filename, note, group_folder_id)
-                state_manager.refresh_session(user_id) # Keep session alive
+        # 1. Check if the text starts with a secret code to begin/reset a session
+        parts = text.split(maxsplit=1)
+        potential_code = parts[0]
+        group_from_code = config_manager.get_group_from_secret_code(potential_code)
+
+        if group_from_code:
+            state_manager.set_pending_upload(user_id, group_from_code)
+            active_group = group_from_code
+            logger.info(f"Session started/refreshed for user {user_id} to group '{active_group}'.")
+            if len(parts) > 1:
+                note_to_save = parts[1]  # The note is the rest of the message
         else:
-            # If not a command or new session, check for an active session for a note
+            # 2. If not a session starter, check for a pre-existing active session
             active_group = state_manager.get_active_group(user_id)
             if active_group:
-                gdrive_service = GoogleDriveService()
-                today_str = datetime.now().strftime("%Y-%m-%d")
-                daily_log_filename = f"{today_str}_notes.txt"
-                group_folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id)
-                gdrive_service.append_text_to_file(daily_log_filename, text, group_folder_id)
-                state_manager.refresh_session(user_id)
-            else:
-                logger.info(f"Received non-code, non-command text from {user_id} with no active session. Ignoring.")
+                note_to_save = text  # The entire message is treated as a note
+
+        # 3. If we have an active group and a note to save, then save it.
+        if active_group and note_to_save:
+            logger.info(f"Saving note for user {user_id} in group '{active_group}'.")
+            gdrive_service = GoogleDriveService()
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            daily_log_filename = f"{today_str}_notes.txt"
+            
+            group_folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id)
+            gdrive_service.append_text_to_file(daily_log_filename, note_to_save, group_folder_id)
+            
+            # Keep the session alive after a successful action
+            state_manager.refresh_session(user_id)
+        elif not group_from_code and not active_group:
+             logger.warning(f"Received text from user {user_id} but they have no active session. Ignoring.")
 
     # Handle image messages
     elif isinstance(event.message, ImageMessageContent):
