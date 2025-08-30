@@ -3,6 +3,7 @@ import shutil
 import json
 from unittest.mock import patch, AsyncMock
 from src.state_manager import StateManager
+from datetime import datetime
 
 CONFIG_TEMPLATE_PATH = "config.json.template"
 CONFIG_FILE_PATH = "config.json"
@@ -22,28 +23,39 @@ def before_scenario(context, scenario):
     """
     Runs before each scenario.
     """
-    context.state_manager = StateManager()
+    # Use a short session duration for testing expiration
+    context.state_manager = StateManager(session_duration_seconds=10)
     context.time_patcher = None 
 
     if context.feature_name == "management":
-        # --- THIS IS THE NEW ROBUST SETUP ---
-        # It copies the pristine template to the active config file,
-        # ensuring every scenario starts with a clean state.
         if os.path.exists(CONFIG_TEMPLATE_PATH):
             shutil.copy(CONFIG_TEMPLATE_PATH, CONFIG_FILE_PATH)
         else:
             raise FileNotFoundError(f"Config template not found at {CONFIG_TEMPLATE_PATH}")
-        # ------------------------------------
 
     elif context.feature_name == "line_integration":
         context.config_data = {"secret_code_map": {}}
+        
+        # --- BDD Refactoring: Mock datetime ---
+        context.mocked_date = datetime(2025, 8, 30)
+        context.patcher_datetime = patch('src.webhook_processor.datetime')
+        MockDateTime = context.patcher_datetime.start()
+        MockDateTime.now.return_value = context.mocked_date
+        # ------------------------------------
+
         context.patcher_gdrive = patch('src.webhook_processor.GoogleDriveService')
         context.patcher_download = patch('src.webhook_processor.download_image_content', new_callable=AsyncMock)
+        
         MockGoogleDriveService = context.patcher_gdrive.start()
         context.mock_gdrive_service = MockGoogleDriveService.return_value
         context.mock_download = context.patcher_download.start()
-        context.mock_gdrive_service.find_or_create_folder.return_value = "dummy_folder_id"
-    
+        
+        # Simulate sequential return values for folder creation
+        context.mock_gdrive_service.find_or_create_folder.side_effect = [
+            "group_folder_id_1", "daily_folder_id_1",
+            "group_folder_id_2", "daily_folder_id_2", # For subsequent calls
+        ]
+
     elif context.feature_name == "classification":
         if os.path.exists("Group A"): shutil.rmtree("Group A")
         if os.path.exists("Group B"): shutil.rmtree("Group B")
@@ -51,12 +63,11 @@ def before_scenario(context, scenario):
 def after_scenario(context, scenario):
     """
     Runs after each scenario to clean up.
-    The config file restoration is no longer needed here.
     """
     if context.feature_name == "line_integration":
         context.patcher_gdrive.stop()
         context.patcher_download.stop()
+        context.patcher_datetime.stop() # Stop the datetime patcher
     
-    # Ensure any stray time patchers are stopped after the scenario
     if hasattr(context, 'time_patcher') and context.time_patcher:
         context.time_patcher.stop()
