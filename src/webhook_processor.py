@@ -14,6 +14,8 @@ import redis
 import os
 import aiohttp
 import asyncio
+from datetime import datetime
+
 
 logger = logging.getLogger(__name__)
 CONFIG_FILE = "config.json"
@@ -162,9 +164,21 @@ async def process_webhook_event(
             
             if image_content:
                 gdrive_service = GoogleDriveService()
-                folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id=parent_folder_id)
+                
+                # --- Implementation of Daily Folder Logic ---
+                # 1. Find or create the main group folder first.
+                group_folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id=parent_folder_id)
+
+                # 2. Create the daily subfolder name (YYYY-MM-DD).
+                today_str = datetime.now().strftime("%Y-%m-%d")
+
+                # 3. Find or create the daily subfolder within the group folder.
+                daily_folder_id = gdrive_service.find_or_create_folder(today_str, parent_folder_id=group_folder_id)
+                # --- End of Implementation ---
+
                 file_name = f"{event.message.id}.jpg"
-                gdrive_service.upload_file(file_name, image_content, folder_id)
+                # 4. Upload the file to the final daily folder.
+                gdrive_service.upload_file(file_name, image_content, daily_folder_id)
                 
                 # Keep the session alive after a successful upload
                 state_manager.refresh_session(user_id)
