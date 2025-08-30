@@ -10,11 +10,11 @@ Feature: Process images from a LINE webhook using a dynamic user session workflo
     And user "U123" sends an image
     Then the image from user "U123" should be uploaded to the "Group_A_Photos" folder
 
- Scenario: Another user interrupts the workflow and fails to upload
+  Scenario: Another user interrupts the workflow and fails to upload
     Given the secret code "#s1" is configured for the "Group_A_Photos" folder
     When user "U123" sends a text message with "#s1"
     And another user "U456" sends an image
-    Then no files should be uploaded
+    Then the interrupting image from "U456" was not uploaded
     When user "U123" sends another image
     Then the image from user "U123" should be uploaded to the "Group_A_Photos" folder
 
