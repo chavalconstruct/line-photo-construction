@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch, call
+from unittest.mock import MagicMock, AsyncMock, patch, call, ANY
 from src.webhook_processor import process_webhook_event, download_image_content
 from src.state_manager import StateManager
 from src.config_manager import ConfigManager
@@ -321,13 +321,23 @@ async def test_handles_subsequent_note_with_active_session(
     mock_state_manager.get_active_group.return_value = "Group_A"
     mock_gdrive_instance = mock_gdrive_service_class.return_value
 
+    # FIX: Mock the side effect for two separate folder creations
+    mock_gdrive_instance.find_or_create_folder.side_effect = ["group_folder_id", "daily_folder_id"]
+
     text_message = TextMessageContent(id="t2", text="This is a follow-up note.", quote_token="q_token_note_2")
     event = create_mock_event("U123_note_user", text_message)
 
     await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
 
-    mock_state_manager.get_active_group.assert_called_once_with("U123_note_user")
-    mock_gdrive_instance.append_text_to_file.assert_called_once()
+    # Assert that find_or_create_folder was called twice
+    assert mock_gdrive_instance.find_or_create_folder.call_count == 2
+    
+    # FIX: Assert that append_text_to_file is called with the ID of the *daily* folder
+    mock_gdrive_instance.append_text_to_file.assert_called_once_with(
+        ANY, # We don't care about the filename in this check
+        "This is a follow-up note.",
+        "daily_folder_id" # This must be the ID of the nested daily folder
+    )
     mock_state_manager.refresh_session.assert_called_once_with("U123_note_user")
 
 

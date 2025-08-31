@@ -174,12 +174,17 @@ async def process_webhook_event(
             today_str = datetime.now().strftime("%Y-%m-%d")
             daily_log_filename = f"{today_str}_notes.txt"
             
+            # FIX: Added logic to find/create the daily subfolder for notes
+            # 1. Find the main group folder
             group_folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id)
-            gdrive_service.append_text_to_file(daily_log_filename, note_to_save, group_folder_id)
+            # 2. Find/create the daily subfolder inside the group folder
+            daily_folder_id = gdrive_service.find_or_create_folder(today_str, parent_folder_id=group_folder_id)
             
+            # 3. Append the note to the file inside the daily folder
+            gdrive_service.append_text_to_file(daily_log_filename, note_to_save, daily_folder_id)
+            
+            # Keep the session alive after a successful action
             state_manager.refresh_session(user_id)
-        elif not group_from_code and not active_group:
-             logger.warning(f"Received text from user {user_id} but they have no active session. Ignoring.")
 
     # Handle image messages
     elif isinstance(event.message, ImageMessageContent):
