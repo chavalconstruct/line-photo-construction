@@ -60,8 +60,6 @@ async def download_image_content(image_message_id: str, channel_access_token: st
     return None
 
 async def handle_command(command: dict, user_id: str, config_manager: ConfigManager, line_bot_api: AsyncMessagingApi, event: MessageEvent):
-    # ... (this function remains unchanged)
-    # ... (เนื้อหาฟังก์ชัน handle_command เหมือนเดิม)
     action = command.get("action")
     if action == "list":
         all_codes = config_manager.get_all_secret_codes()
@@ -143,14 +141,50 @@ async def process_webhook_event(
             await handle_command(command, user_id, config_manager, line_bot_api, event)
             return
         
-        # Check if the text is a secret code
-        group = config_manager.get_group_from_secret_code(text)
-        if group:
-            # If it's a code, start a session for THIS user
-            state_manager.set_pending_upload(user_id, group)
-            logger.info(f"Upload session started for user {user_id} to group '{group}'.")
-        else:
-            logger.info(f"Received non-code, non-command text from {user_id}. Ignoring.")
+        note_to_save = None
+        active_group = None
+        group_from_code = None
+        
+        # 1. More robustly check if the text starts with any known secret code.
+        all_codes = config_manager.get_all_secret_codes()
+        for code in all_codes:
+            if text.startswith(code):
+                group_from_code = all_codes[code]
+                state_manager.set_pending_upload(user_id, group_from_code)
+                active_group = group_from_code
+                
+                # Extract the note by removing the code prefix.
+                note_to_save = text[len(code):].lstrip() # Use lstrip to remove leading space if it exists
+                if not note_to_save: # Handle case where only code is sent
+                    note_to_save = None
+
+                logger.info(f"Session started/refreshed for user {user_id} to group '{active_group}'.")
+                break # Stop after finding the first match
+
+        # 2. If no session was started, check for a pre-existing active session.
+        if not group_from_code:
+            active_group = state_manager.get_active_group(user_id)
+            if active_group:
+                note_to_save = text
+
+        # 3. If we have an active group and a note to save, then save it.
+        if active_group and note_to_save:
+            logger.info(f"Saving note for user {user_id} in group '{active_group}'.")
+            gdrive_service = GoogleDriveService()
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            daily_log_filename = f"{today_str}_notes.txt"
+            
+            # FIX: Added logic to find/create the daily subfolder for notes
+            # 1. Find the main group folder
+            group_folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id)
+            # 2. Find/create the daily subfolder inside the group folder
+            daily_folder_id = gdrive_service.find_or_create_folder(today_str, parent_folder_id=group_folder_id)
+            
+            # 3. Append the note to the file inside the daily folder
+            gdrive_service.append_text_to_file(daily_log_filename, note_to_save, daily_folder_id)
+            
+            # Keep the session alive after a successful action
+            state_manager.refresh_session(user_id)
 
     # Handle image messages
     elif isinstance(event.message, ImageMessageContent):

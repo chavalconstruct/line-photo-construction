@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch, call
+from unittest.mock import MagicMock, AsyncMock, patch, call, ANY
 from src.webhook_processor import process_webhook_event, download_image_content
 from src.state_manager import StateManager
 from src.config_manager import ConfigManager
@@ -32,10 +32,22 @@ def create_mock_event(user_id, message_content, reply_token="dummy_reply_token")
 
 @pytest.fixture
 def mock_config_manager():
-    # We no longer need to mock get_app_user
+    """
+    Provides a mock ConfigManager that is compatible with the latest
+    note-taking and session-starting logic.
+    """
     mock = MagicMock(spec=ConfigManager)
-    mock.get_group_from_secret_code.side_effect = lambda code: "Group_A" if code == "#s1" else None
-    mock.is_admin.side_effect = lambda user_id: True if user_id == "U_ADMIN" else False
+    
+    # FIX: This is the primary fix.
+    # Mock get_all_secret_codes() to return the dictionary our new logic needs.
+    mock.get_all_secret_codes.return_value = {
+        "#s1": "Group_A",
+        "#s2": "Group_B" # Added for completeness
+    }
+    
+    # Mock is_admin for tests that require admin checks.
+    mock.is_admin.return_value = False # Default to False unless specified in a test
+    
     return mock
 
 @pytest.fixture
@@ -61,7 +73,7 @@ async def test_handles_secret_code_and_starts_session(
     
     await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
     
-    # Assert that a session is started for the correct user ID
+    # This assertion will now pass because the mock provides the necessary data.
     mock_state_manager.set_pending_upload.assert_called_once_with("U123_any_user", "Group_A")
     mock_line_bot_api.reply_message.assert_not_called()
 
@@ -273,3 +285,102 @@ async def test_ignores_non_message_event_gracefully(
     # Assert that no message-related functions were called
     mock_state_manager.set_pending_upload.assert_not_called()
     mock_state_manager.get_active_group.assert_not_called()
+
+@pytest.mark.asyncio
+@patch('src.webhook_processor.GoogleDriveService')
+async def test_handles_secret_code_with_initial_note(
+    mock_gdrive_service_class, mock_config_manager, mock_state_manager, mock_line_bot_api
+):
+    """
+    Tests that a text message containing a secret code and a note starts a session
+    and extracts the note correctly.
+    """
+    mock_gdrive_instance = mock_gdrive_service_class.return_value
+    text_message = TextMessageContent(id="t1", text="#s1 This is an initial note.", quote_token="q_token_note_1")
+    event = create_mock_event("U123_note_user", text_message)
+
+    await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
+
+    mock_state_manager.set_pending_upload.assert_called_once_with("U123_note_user", "Group_A")
+    
+    mock_gdrive_instance.append_text_to_file.assert_called_once_with(
+        f"{datetime.now().strftime('%Y-%m-%d')}_notes.txt",
+        "This is an initial note.",
+        mock_gdrive_instance.find_or_create_folder.return_value
+    )
+    mock_line_bot_api.reply_message.assert_not_called()
+
+@pytest.mark.asyncio
+@patch('src.webhook_processor.GoogleDriveService')
+async def test_handles_subsequent_note_with_active_session(
+    mock_gdrive_service_class, mock_config_manager, mock_state_manager, mock_line_bot_api
+):
+    """
+    Tests that a simple text message is treated as a note when a session is active.
+    """
+    mock_state_manager.get_active_group.return_value = "Group_A"
+    mock_gdrive_instance = mock_gdrive_service_class.return_value
+
+    # FIX: Mock the side effect for two separate folder creations
+    mock_gdrive_instance.find_or_create_folder.side_effect = ["group_folder_id", "daily_folder_id"]
+
+    text_message = TextMessageContent(id="t2", text="This is a follow-up note.", quote_token="q_token_note_2")
+    event = create_mock_event("U123_note_user", text_message)
+
+    await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
+
+    # Assert that find_or_create_folder was called twice
+    assert mock_gdrive_instance.find_or_create_folder.call_count == 2
+    
+    # FIX: Assert that append_text_to_file is called with the ID of the *daily* folder
+    mock_gdrive_instance.append_text_to_file.assert_called_once_with(
+        ANY, # We don't care about the filename in this check
+        "This is a follow-up note.",
+        "daily_folder_id" # This must be the ID of the nested daily folder
+    )
+    mock_state_manager.refresh_session.assert_called_once_with("U123_note_user")
+
+
+@pytest.mark.asyncio
+@patch('src.webhook_processor.GoogleDriveService')
+async def test_ignores_text_with_no_active_session(
+    mock_gdrive_service_class, mock_config_manager, mock_state_manager, mock_line_bot_api
+):
+    """
+    Tests that a text message not containing a command or secret code is ignored
+    if no session is active.
+    """
+    mock_state_manager.get_active_group.return_value = None
+    mock_gdrive_instance = mock_gdrive_service_class.return_value
+
+    text_message = TextMessageContent(id="t3", text="This note should be ignored.", quote_token="q_token_note_3")
+    event = create_mock_event("U456_no_session", text_message)
+
+    await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
+
+    mock_state_manager.get_active_group.assert_called_once_with("U456_no_session")
+    mock_gdrive_instance.append_text_to_file.assert_not_called()
+
+@pytest.mark.asyncio
+@patch('src.webhook_processor.GoogleDriveService')
+async def test_handles_secret_code_without_space_before_note(
+    mock_gdrive_service_class, mock_config_manager, mock_state_manager, mock_line_bot_api
+):
+    """
+    Tests that a session is started and the note is correctly extracted
+    even when there is no space between the secret code and the note.
+    """
+    mock_gdrive_instance = mock_gdrive_service_class.return_value
+    text_message = TextMessageContent(id="t4", text="#s1Urgent meeting.", quote_token="q_token_note_4")
+    event = create_mock_event("U789_no_space", text_message)
+
+    await process_webhook_event(event, mock_state_manager, mock_config_manager, mock_line_bot_api, "dummy_token", "dummy_parent_id")
+
+    # A session should be started
+    mock_state_manager.set_pending_upload.assert_called_once_with("U789_no_space", "Group_A")
+    # The note should be saved
+    mock_gdrive_instance.append_text_to_file.assert_called_once()
+    # Check that the note text is correctly extracted
+    args, kwargs = mock_gdrive_instance.append_text_to_file.call_args
+    extracted_note = args[1]
+    assert extracted_note == "Urgent meeting."
