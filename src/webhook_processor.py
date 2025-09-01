@@ -1,28 +1,30 @@
 """
-This module contains the logic for processing webhook events from the LINE API.
+This module acts as a router for incoming webhook events from the LINE API,
+directing them to the appropriate handlers based on message type.
 """
 import logging
-import aiohttp
 from typing import Optional
+
+import redis
+import os
+
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent
-from linebot.v3.messaging import AsyncMessagingApi, ReplyMessageRequest, TextMessage
+from linebot.v3.messaging import AsyncMessagingApi
+
 from src.state_manager import StateManager
 from src.config_manager import ConfigManager
 from src.google_drive_uploader import GoogleDriveService
-from src.command_parser import parse_command
-import redis
-import os
-import aiohttp
-import asyncio
-from datetime import datetime
+
+# Import handlers
+from src.handlers.text_message_handler import handle_text_message
+from src.handlers.image_message_handler import handle_image_message
 
 
 logger = logging.getLogger(__name__)
-CONFIG_FILE = "config.json"
 
+# --- Redis Client Initialization ---
 redis_client = None
 redis_url = os.getenv('REDIS_URL')
-
 if redis_url:
     try:
         redis_client = redis.from_url(redis_url, decode_responses=True)
@@ -32,73 +34,7 @@ if redis_url:
         logger.error(f"❌ Failed to connect to Redis: {e}")
         redis_client = None
 else:
-    logger.warning("REDIS_URL not found. Redis client is not initialized. (This is normal for local testing without Redis)")
-
-async def download_image_content(image_message_id: str, channel_access_token: str) -> Optional[bytes]:
-    headers = {"Authorization": f"Bearer {channel_access_token}"}
-    image_url = f"https://api-data.line.me/v2/bot/message/{image_message_id}/content"
-    
-    # --- FIX: สร้าง Session นอก Loop ---
-    async with aiohttp.ClientSession() as session:
-        for attempt in range(3):
-            try:
-                async with session.get(image_url, headers=headers) as resp:
-                    if resp.status == 200:
-                        return await resp.read()
-                    else:
-                        logger.error(f"❌ Failed to fetch image. Status: {resp.status}, Response: {await resp.text()}")
-                        return None 
-            except aiohttp.ClientError as e:
-                logger.warning(f"⚠️ Attempt {attempt + 1}/3 failed to download image due to a connection error: {e}")
-                if attempt < 2:
-                    await asyncio.sleep(1)
-            except Exception as e:
-                logger.error(f"An unexpected error occurred while fetching image content: {e}")
-                return None
-            
-    logger.error(f"❌ Failed to download image after 3 attempts for message ID {image_message_id}.")
-    return None
-
-async def handle_command(command: dict, user_id: str, config_manager: ConfigManager, line_bot_api: AsyncMessagingApi, event: MessageEvent):
-    action = command.get("action")
-    if action == "list":
-        all_codes = config_manager.get_all_secret_codes()
-        if not all_codes:
-            reply_text = "No secret codes are currently configured."
-        else:
-            header = "รายชื่อไซต์ก่อสร้าง:\n"
-            lines = [f"{code}  {group}" for code, group in all_codes.items()]
-            reply_text = header + "\n".join(lines)
-        logger.info(f"User {user_id} listed all codes.")
-    elif action in ["add", "remove"]:
-        if not config_manager.is_admin(user_id):
-            reply_text = "Error: You do not have permission to use this command."
-            logger.warning(f"Non-admin user {user_id} attempted to use command '{action}'.")
-        elif action == "add":
-            code, group = command["code"], command["group"]
-            config_manager.add_secret_code(code, group)
-            config_manager.save_config(CONFIG_FILE)
-            reply_text = f"Success: Code {code} has been added for group {group}."
-            logger.info(f"Admin {user_id} added code {code} for group {group}.")
-        elif action == "remove":
-            code = command["code"]
-            was_removed = config_manager.remove_secret_code(code)
-            if was_removed:
-                config_manager.save_config(CONFIG_FILE)
-                reply_text = f"Success: Code {code} has been removed."
-                logger.info(f"Admin {user_id} removed code {code}.")
-            else:
-                reply_text = f"Error: Code {code} was not found and could not be removed."
-                logger.warning(f"Admin {user_id} tried to remove non-existent code {code}.")
-    else:
-        reply_text = "Error: Unknown command."
-        logger.error(f"Unknown command action '{action}' from user {user_id}.")
-    await line_bot_api.reply_message(
-        ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text=reply_text)]
-        )
-    )
+    logger.warning("REDIS_URL not found. Redis client is not initialized.")
 
 
 async def process_webhook_event(
@@ -110,110 +46,37 @@ async def process_webhook_event(
     channel_access_token: str,
     parent_folder_id: Optional[str]
 ):
-    
+    """
+    Acts as a router, checking for duplicate events and then passing the
+    event to the appropriate handler based on its message type.
+    """
     if not isinstance(event, MessageEvent):
         logger.info(f"Received non-message event: {type(event).__name__}. Ignoring.")
         return
-    
+
+    # --- Duplicate Event Check (using Redis) ---
     if redis_client:
-        
         message_id = event.message.id
         redis_key = f"line_msg_{message_id}"
-
-        # nx=True: set a value only if the key does not exist
-        # ex=60: set an expiration time of 60 seconds
         if not redis_client.set(redis_key, "processed", nx=True, ex=60):
             logger.warning(f"⚠️ Duplicate event received: message_id={message_id}. Ignoring.")
-            return 
-        
-    if not event.source or not event.source.user_id:
-        return
-    
-    # --- THIS IS THE KEY CHANGE ---
-    # We get user_id directly from the event source.
-    user_id = event.source.user_id
-
-    # Handle text messages (potential commands or secret codes)
-    if isinstance(event.message, TextMessageContent):
-        text = event.message.text
-        command = parse_command(text)
-        
-        if command:
-            await handle_command(command, user_id, config_manager, line_bot_api, event)
             return
-        
-        note_to_save = None
-        active_group = None
-        group_from_code = None
-        
-        # 1. More robustly check if the text starts with any known secret code.
-        all_codes = config_manager.get_all_secret_codes()
-        for code in all_codes:
-            if text.startswith(code):
-                group_from_code = all_codes[code]
-                state_manager.set_pending_upload(user_id, group_from_code)
-                active_group = group_from_code
-                
-                # Extract the note by removing the code prefix.
-                note_to_save = text[len(code):].lstrip() # Use lstrip to remove leading space if it exists
-                if not note_to_save: # Handle case where only code is sent
-                    note_to_save = None
 
-                logger.info(f"Session started/refreshed for user {user_id} to group '{active_group}'.")
-                break # Stop after finding the first match
-
-        # 2. If no session was started, check for a pre-existing active session.
-        if not group_from_code:
-            active_group = state_manager.get_active_group(user_id)
-            if active_group:
-                note_to_save = text
-
-        # 3. If we have an active group and a note to save, then save it.
-        if active_group and note_to_save:
-            logger.info(f"Saving note for user {user_id} in group '{active_group}'.")
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            daily_log_filename = f"{today_str}_notes.txt"
-            
-            # FIX: Added logic to find/create the daily subfolder for notes
-            # 1. Find the main group folder
-            group_folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id)
-            # 2. Find/create the daily subfolder inside the group folder
-            daily_folder_id = gdrive_service.find_or_create_folder(today_str, parent_folder_id=group_folder_id)
-            
-            # 3. Append the note to the file inside the daily folder
-            gdrive_service.append_text_to_file(daily_log_filename, note_to_save, daily_folder_id)
-            
-            # Keep the session alive after a successful action
-            state_manager.refresh_session(user_id)
-
-    # Handle image messages
+    # --- Routing Logic ---
+    if isinstance(event.message, TextMessageContent):
+        await handle_text_message(
+            event,
+            state_manager,
+            config_manager,
+            gdrive_service,
+            line_bot_api,
+            parent_folder_id
+        )
     elif isinstance(event.message, ImageMessageContent):
-        # --- NEW DYNAMIC SESSION LOGIC ---
-        # Check for an active session for THIS user
-        active_group = state_manager.get_active_group(user_id)
-        
-        if active_group:
-            logger.info(f"Image received from user {user_id} with active session for group '{active_group}'.")
-            image_content = await download_image_content(event.message.id, channel_access_token)
-            
-            if image_content:            
-                # --- Implementation of Daily Folder Logic ---
-                # 1. Find or create the main group folder first.
-                group_folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id=parent_folder_id)
-
-                # 2. Create the daily subfolder name (YYYY-MM-DD).
-                today_str = datetime.now().strftime("%Y-%m-%d")
-
-                # 3. Find or create the daily subfolder within the group folder.
-                daily_folder_id = gdrive_service.find_or_create_folder(today_str, parent_folder_id=group_folder_id)
-                # --- End of Implementation ---
-
-                file_name = f"{event.message.id}.jpg"
-                # 4. Upload the file to the final daily folder.
-                gdrive_service.upload_file(file_name, image_content, daily_folder_id)
-                
-                # Keep the session alive after a successful upload
-                state_manager.refresh_session(user_id)
-        else:
-            # If no active session, ignore the image
-            logger.warning(f"Image received from user {user_id} but they have no active session. Ignoring.")
+        await handle_image_message(
+            event,
+            state_manager,
+            gdrive_service,
+            channel_access_token,
+            parent_folder_id
+        )

@@ -1,3 +1,4 @@
+# features/environment.py
 import os
 import shutil
 import json
@@ -15,7 +16,7 @@ def before_feature(context, feature):
     if "process_line_images.feature" in feature.filename:
         context.feature_name = "line_integration"
     elif "process_line_notes.feature" in feature.filename:
-        context.feature_name = "note_integration" # Use a distinct name
+        context.feature_name = "note_integration"
     elif "manage_codes.feature" in feature.filename:
         context.feature_name = "management"
     else:
@@ -25,7 +26,6 @@ def before_scenario(context, scenario):
     """
     Runs before each scenario.
     """
-    # Use a short session duration for testing expiration
     context.state_manager = StateManager(session_duration_seconds=10)
     context.time_patcher = None 
 
@@ -38,41 +38,43 @@ def before_scenario(context, scenario):
     elif context.feature_name == "line_integration":
         context.config_data = {"secret_code_map": {}}
         
-        # --- BDD Refactoring: Mock datetime ---
         context.mocked_date = datetime(2025, 8, 30)
-        context.patcher_datetime = patch('src.webhook_processor.datetime')
+        
+        # --- FIX: Patch 'datetime' where it's used (in the handler) ---
+        context.patcher_datetime = patch('src.handlers.image_message_handler.datetime')
         MockDateTime = context.patcher_datetime.start()
         MockDateTime.now.return_value = context.mocked_date
-        # ------------------------------------
 
-        context.patcher_gdrive = patch('src.webhook_processor.GoogleDriveService')
-        context.patcher_download = patch('src.webhook_processor.download_image_content', new_callable=AsyncMock)
+        # --- FIX: Patch 'GoogleDriveService' where it's used ---
+        context.patcher_gdrive = patch('src.handlers.image_message_handler.GoogleDriveService')
+        
+        # --- FIX: Patch 'download_image_content' where it's defined ---
+        context.patcher_download = patch('src.handlers.image_message_handler.download_image_content', new_callable=AsyncMock)
         
         MockGoogleDriveService = context.patcher_gdrive.start()
         context.mock_gdrive_service = MockGoogleDriveService.return_value
         context.mock_download = context.patcher_download.start()
         
-        # Simulate sequential return values for folder creation
         context.mock_gdrive_service.find_or_create_folder.side_effect = [
             "group_folder_id_1", "daily_folder_id_1",
-            "group_folder_id_2", "daily_folder_id_2", # For subsequent calls
+            "group_folder_id_2", "daily_folder_id_2",
         ]
      
     elif context.feature_name == "note_integration":
         context.config_data = {"secret_code_map": {}}
         
-        # Mock datetime
         context.mocked_date = datetime(2025, 8, 30)
-        context.patcher_datetime = patch('src.webhook_processor.datetime')
+        
+        # --- FIX: Patch 'datetime' where it's used (in the handler) ---
+        context.patcher_datetime = patch('src.handlers.text_message_handler.datetime')
         MockDateTime = context.patcher_datetime.start()
         MockDateTime.now.return_value = context.mocked_date
 
-        # Mock GoogleDriveService
-        context.patcher_gdrive = patch('src.webhook_processor.GoogleDriveService')
+        # --- FIX: Patch 'GoogleDriveService' where it's used ---
+        context.patcher_gdrive = patch('src.handlers.text_message_handler.GoogleDriveService')
         MockGoogleDriveService = context.patcher_gdrive.start()
         context.mock_gdrive_service = MockGoogleDriveService.return_value
         
-        # Set a return value for find_or_create_folder to be used in assertions
         context.mock_gdrive_service.find_or_create_folder.return_value = "group_folder_id_1"
 
     elif context.feature_name == "classification":
