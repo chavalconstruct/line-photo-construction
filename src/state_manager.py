@@ -30,7 +30,7 @@ class StateManager:
             group_name: The target folder/group name for subsequent uploads.
         """
         self._pending_uploads[user_id] = {
-            "group": group_name,
+            "group_name": group_name,
             "timestamp": time.time()
         }
         print(f"Session started for user {user_id} in group {group_name}")
@@ -59,7 +59,7 @@ class StateManager:
             return None
         
         # Session is active, return the group name
-        return session_data["group"]
+        return session_data["group_name"]
 
     def refresh_session(self, user_id: str)-> None:
         """Updates a user's session timestamp to prevent it from expiring.
@@ -70,7 +70,7 @@ class StateManager:
         Args:
             user_id: The unique identifier for the LINE user whose session
                 needs to be refreshed.
-        """
+        """  
         if user_id in self._pending_uploads:
             self._pending_uploads[user_id]['timestamp'] = time.time()
             print(f"Session for user {user_id} has been refreshed.")

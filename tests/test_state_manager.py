@@ -58,7 +58,7 @@ def test_set_pending_upload_creates_timestamp(state_manager):
     # Check the internal structure (for testing purposes)
     assert user_id in state_manager._pending_uploads
     session_data = state_manager._pending_uploads[user_id]
-    assert session_data['group'] == group_name
+    assert session_data['group_name'] == group_name
     # The timestamp should be very close to the current time
     assert session_data['timestamp'] == pytest.approx(current_time, abs=1)
 
