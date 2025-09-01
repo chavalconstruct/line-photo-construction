@@ -1,41 +1,18 @@
 import json
 from behave import *
 from unittest.mock import AsyncMock, patch, MagicMock
-import copy # <-- IMPORT THE COPY MODULE
-
-# We need to re-import our test helpers
-from tests.test_webhook_processor import create_mock_event
+import copy 
 from linebot.v3.webhooks import TextMessageContent
+from tests.test_webhook_processor import create_mock_event
 
 CONFIG_FILE_PATH = "config.json"
-
-# --- Given Steps ---
-
-@given('the system is configured with "{user_id}" as an admin user')
-def step_impl(context, user_id):
-    # This step assumes the config.json is already set up correctly by the user.
-    # We can add a check here for clarity if needed.
-    with open(CONFIG_FILE_PATH, 'r') as f:
-        config_data = json.load(f)
-    assert user_id in config_data.get("admins", []), f"User {user_id} not found in admins list in config.json"
-    # Store the user_id for later use in 'When' steps
-    context.admin_user_id = user_id
-
-@given('the system is configured with "{user_id}" as a non-admin user')
-def step_impl(context, user_id):
-    with open(CONFIG_FILE_PATH, 'r') as f:
-        config_data = json.load(f)
-    assert user_id not in config_data.get("admins", []), f"User {user_id} was found in admins list, but should not be."
-    context.non_admin_user_id = user_id
-
-
-# --- When Steps ---
 
 def user_sends_message(context, user_id, message_text):
     """A helper function to simulate a user sending a text message."""
     from src.webhook_processor import process_webhook_event
     from src.config_manager import ConfigManager
     import asyncio
+    mock_gdrive_service = MagicMock()
 
     # We need to reload the config data for each event to get the latest state
     with open(CONFIG_FILE_PATH, 'r') as f:
@@ -60,11 +37,34 @@ def user_sends_message(context, user_id, message_text):
     asyncio.run(process_webhook_event(
         event=event,
         state_manager=context.state_manager,
-        config_manager=isolated_config_manager, # <-- Use the new isolated manager
+        config_manager=isolated_config_manager,
+        gdrive_service=mock_gdrive_service,
         line_bot_api=mock_line_api,
         channel_access_token="dummy_token",
         parent_folder_id=None
     ))
+
+# --- Given Steps ---
+
+@given('the system is configured with "{user_id}" as an admin user')
+def step_impl(context, user_id):
+    # This step assumes the config.json is already set up correctly by the user.
+    # We can add a check here for clarity if needed.
+    with open(CONFIG_FILE_PATH, 'r') as f:
+        config_data = json.load(f)
+    assert user_id in config_data.get("admins", []), f"User {user_id} not found in admins list in config.json"
+    # Store the user_id for later use in 'When' steps
+    context.admin_user_id = user_id
+
+@given('the system is configured with "{user_id}" as a non-admin user')
+def step_impl(context, user_id):
+    with open(CONFIG_FILE_PATH, 'r') as f:
+        config_data = json.load(f)
+    assert user_id not in config_data.get("admins", []), f"User {user_id} was found in admins list, but should not be."
+    context.non_admin_user_id = user_id
+
+
+# --- When Steps ---
 
 @when('admin user "{user_id}" sends the message "{message_text}"')
 def step_impl(context, user_id, message_text):

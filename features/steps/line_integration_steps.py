@@ -26,6 +26,7 @@ def process_current_event(context):
         event=context.current_event,
         state_manager=context.state_manager,
         config_manager=config_manager,
+        gdrive_service=context.mock_gdrive_service,
         line_bot_api=AsyncMock(),
         channel_access_token="dummy_token",
         parent_folder_id="dummy_parent_id"
