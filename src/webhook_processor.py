@@ -105,6 +105,7 @@ async def process_webhook_event(
     event: MessageEvent,
     state_manager: StateManager,
     config_manager: ConfigManager,
+    gdrive_service: GoogleDriveService,
     line_bot_api: AsyncMessagingApi,
     channel_access_token: str,
     parent_folder_id: Optional[str]
@@ -170,7 +171,6 @@ async def process_webhook_event(
         # 3. If we have an active group and a note to save, then save it.
         if active_group and note_to_save:
             logger.info(f"Saving note for user {user_id} in group '{active_group}'.")
-            gdrive_service = GoogleDriveService()
             today_str = datetime.now().strftime("%Y-%m-%d")
             daily_log_filename = f"{today_str}_notes.txt"
             
@@ -196,9 +196,7 @@ async def process_webhook_event(
             logger.info(f"Image received from user {user_id} with active session for group '{active_group}'.")
             image_content = await download_image_content(event.message.id, channel_access_token)
             
-            if image_content:
-                gdrive_service = GoogleDriveService()
-                
+            if image_content:            
                 # --- Implementation of Daily Folder Logic ---
                 # 1. Find or create the main group folder first.
                 group_folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id=parent_folder_id)

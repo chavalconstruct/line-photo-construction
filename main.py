@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from src.webhook_processor import process_webhook_event
 from src.state_manager import StateManager
 from src.config_manager import ConfigManager
+from src.google_drive_uploader import GoogleDriveService
 from linebot.v3.webhook import WebhookParser
 from linebot.v3.messaging import AsyncApiClient, AsyncMessagingApi, Configuration
 from linebot.v3.exceptions import InvalidSignatureError
@@ -42,7 +43,8 @@ except (FileNotFoundError, json.JSONDecodeError) as e:
 # Create singleton instances of our managers
 app.state_manager = StateManager()
 app.config_manager = ConfigManager(config_data)
-# --- END NEW ---
+app.gdrive_service = GoogleDriveService()
+
 
 channel_secret = os.getenv('LINE_CHANNEL_SECRET', None)
 channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
@@ -87,6 +89,7 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
             event=event,
             state_manager=app.state_manager,
             config_manager=app.config_manager,
+            gdrive_service=app.gdrive_service,
             line_bot_api=line_bot_api,
             channel_access_token=channel_access_token,
             parent_folder_id=parent_folder_id
