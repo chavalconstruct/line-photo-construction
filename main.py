@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Response
-from linebot.v3.webhook import WebhookParser, models
+from linebot.v3.webhook import WebhookParser
 from linebot.v3.messaging import AsyncApiClient, AsyncMessagingApi, Configuration
 from linebot.v3.exceptions import InvalidSignatureError
 import sentry_sdk
@@ -93,7 +93,7 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks) ->
     try:
         signature: str = request.headers['X-Line-Signature']
         body: str = (await request.body()).decode('utf-8')
-        events: List[models.Event] = parser.parse(body, signature)
+        events = parser.parse(body, signature)
     except InvalidSignatureError:
         raise HTTPException(status_code=400, detail="Invalid signature")
     except Exception as e:
