@@ -2,10 +2,12 @@ import logging
 import sys
 import os
 import json
+from typing import Optional, Dict, Any, List
+
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Response
-from linebot.v3.webhook import WebhookParser
+from linebot.v3.webhook import WebhookParser, models
 from linebot.v3.messaging import AsyncApiClient, AsyncMessagingApi, Configuration
 from linebot.v3.exceptions import InvalidSignatureError
 import sentry_sdk
@@ -34,7 +36,7 @@ app = FastAPI()
 # CONFIGURATION & SERVICE INITIALIZATION
 # ==============================================================================
 # --- Sentry Initialization ---
-sentry_dsn = os.getenv('SENTRY_DSN', None)
+sentry_dsn: Optional[str] = os.getenv('SENTRY_DSN', None)
 if sentry_dsn:
     sentry_sdk.init(
         dsn=sentry_dsn,
@@ -42,10 +44,10 @@ if sentry_dsn:
     )
 
 # --- Load Application Configuration from File ---
-CONFIG_FILE = os.getenv('CONFIG_FILE_PATH', 'config.json')
+CONFIG_FILE: str = os.getenv('CONFIG_FILE_PATH', 'config.json')
 try:
     with open(CONFIG_FILE, 'r') as f:
-        config_data = json.load(f)
+        config_data: Dict[str, Any] = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError) as e:
     logging.error(f"Error loading config file: {e}")
     config_data = {}
@@ -58,9 +60,9 @@ app.gdrive_service = GoogleDriveService()
 # ==============================================================================
 # LINE BOT API SETUP
 # ==============================================================================
-channel_secret = os.getenv('LINE_CHANNEL_SECRET', None)
-channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
-parent_folder_id = os.getenv('PARENT_FOLDER_ID', None)
+channel_secret: Optional[str] = os.getenv('LINE_CHANNEL_SECRET', None)
+channel_access_token: Optional[str] = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
+parent_folder_id: Optional[str] = os.getenv('PARENT_FOLDER_ID', None)
 
 if not channel_secret or not channel_access_token:
     raise RuntimeError("LINE_CHANNEL_SECRET or LINE_CHANNEL_ACCESS_TOKEN not found.")
@@ -74,25 +76,24 @@ parser = WebhookParser(channel_secret)
 # API ENDPOINTS
 # ==============================================================================
 @app.get("/")
-def read_root():
-    # This is a test comment for the CI/CD pipeline.
+def read_root() -> Dict[str, str]:
     return {"message": "Stateful Image Upload Service is running"}
 
 @app.head("/")
-def head_root():
+def head_root() -> Response:
     return Response(status_code=200)
 
 @app.api_route("/health", methods=["GET", "HEAD"], status_code=200)
-def health_check():
+def health_check() -> Dict[str, str]:
     """A simple endpoint to confirm the service is up and handle HEAD requests."""
     return {"status": "ok"}
 
 @app.post("/webhook")
-async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
+async def handle_webhook(request: Request, background_tasks: BackgroundTasks) -> str:
     try:
-        signature = request.headers['X-Line-Signature']
-        body = (await request.body()).decode('utf-8')
-        events = parser.parse(body, signature)
+        signature: str = request.headers['X-Line-Signature']
+        body: str = (await request.body()).decode('utf-8')
+        events: List[models.Event] = parser.parse(body, signature)
     except InvalidSignatureError:
         raise HTTPException(status_code=400, detail="Invalid signature")
     except Exception as e:
