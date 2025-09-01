@@ -1,18 +1,23 @@
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Response
+import logging
+import sys
 import os
 import json
 from dotenv import load_dotenv
+
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Response
+from linebot.v3.webhook import WebhookParser
+from linebot.v3.messaging import AsyncApiClient, AsyncMessagingApi, Configuration
+from linebot.v3.exceptions import InvalidSignatureError
+import sentry_sdk
+
 from src.webhook_processor import process_webhook_event
 from src.state_manager import StateManager
 from src.config_manager import ConfigManager
 from src.google_drive_uploader import GoogleDriveService
-from linebot.v3.webhook import WebhookParser
-from linebot.v3.messaging import AsyncApiClient, AsyncMessagingApi, Configuration
-from linebot.v3.exceptions import InvalidSignatureError
-import logging
-import sys
-import sentry_sdk 
 
+# ==============================================================================
+# INITIAL SETUP (Logging, Environment Variables)
+# ==============================================================================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -20,18 +25,23 @@ logging.basicConfig(
 )
 load_dotenv()
 
+# ==============================================================================
+# FASTAPI APP INSTANCE
+# ==============================================================================
+app = FastAPI()
+
+# ==============================================================================
+# CONFIGURATION & SERVICE INITIALIZATION
+# ==============================================================================
+# --- Sentry Initialization ---
 sentry_dsn = os.getenv('SENTRY_DSN', None)
 if sentry_dsn:
     sentry_sdk.init(
         dsn=sentry_dsn,
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for performance monitoring.
         traces_sample_rate=1.0,
     )
 
-app = FastAPI()
-
-# --- NEW: Load config and initialize managers ---
+# --- Load Application Configuration from File ---
 CONFIG_FILE = os.getenv('CONFIG_FILE_PATH', 'config.json')
 try:
     with open(CONFIG_FILE, 'r') as f:
@@ -40,15 +50,18 @@ except (FileNotFoundError, json.JSONDecodeError) as e:
     logging.error(f"Error loading config file: {e}")
     config_data = {}
 
-# Create singleton instances of our managers
+# --- Create and Attach Singleton Services & Managers to App Instance ---
 app.state_manager = StateManager()
 app.config_manager = ConfigManager(config_data)
 app.gdrive_service = GoogleDriveService()
 
-
+# ==============================================================================
+# LINE BOT API SETUP
+# ==============================================================================
 channel_secret = os.getenv('LINE_CHANNEL_SECRET', None)
 channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
 parent_folder_id = os.getenv('PARENT_FOLDER_ID', None)
+
 if not channel_secret or not channel_access_token:
     raise RuntimeError("LINE_CHANNEL_SECRET or LINE_CHANNEL_ACCESS_TOKEN not found.")
 
@@ -57,6 +70,9 @@ async_api_client = AsyncApiClient(configuration)
 line_bot_api = AsyncMessagingApi(async_api_client)
 parser = WebhookParser(channel_secret)
 
+# ==============================================================================
+# API ENDPOINTS
+# ==============================================================================
 @app.get("/")
 def read_root():
     # This is a test comment for the CI/CD pipeline.
@@ -83,7 +99,6 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
     for event in events:
-        # Pass manager instances to the processing function
         background_tasks.add_task(
             process_webhook_event,
             event=event,
