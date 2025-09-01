@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 async def download_image_content(image_message_id: str, channel_access_token: str) -> Optional[bytes]:
     """Downloads image content from LINE's content endpoint with retry logic."""
-    headers = {"Authorization": f"Bearer {channel_access_token}"}
-    image_url = f"https://api-data.line.me/v2/bot/message/{image_message_id}/content"
+    headers: Dict[str, str] = {"Authorization": f"Bearer {channel_access_token}"}
+    image_url: str = f"https://api-data.line.me/v2/bot/message/{image_message_id}/content"
     
     async with aiohttp.ClientSession() as session:
         for attempt in range(3):
@@ -41,26 +41,27 @@ async def handle_image_message(
     gdrive_service: GoogleDriveService,
     channel_access_token: str,
     parent_folder_id: Optional[str]
-):
+) -> None:
     """
     Handles all logic for incoming image message events.
     """
     if not event.source or not event.source.user_id:
         return
 
-    user_id = event.source.user_id
-    active_group = state_manager.get_active_group(user_id)
+    user_id: str = event.source.user_id
+    active_group: Optional[str] = state_manager.get_active_group(user_id)
     
     if active_group:
         logger.info(f"Image received from user {user_id} with active session for group '{active_group}'.")
-        image_content = await download_image_content(event.message.id, channel_access_token)
+        
+        image_content: Optional[bytes] = await download_image_content(event.message.id, channel_access_token)
         
         if image_content:            
-            group_folder_id = gdrive_service.find_or_create_folder(active_group, parent_folder_id=parent_folder_id)
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            daily_folder_id = gdrive_service.find_or_create_folder(today_str, parent_folder_id=group_folder_id)
+            group_folder_id: str = gdrive_service.find_or_create_folder(active_group, parent_folder_id=parent_folder_id)
+            today_str: str = datetime.now().strftime("%Y-%m-%d")
+            daily_folder_id: str = gdrive_service.find_or_create_folder(today_str, parent_folder_id=group_folder_id)
 
-            file_name = f"{event.message.id}.jpg"
+            file_name: str = f"{event.message.id}.jpg"
             gdrive_service.upload_file(file_name, image_content, daily_folder_id)
             
             state_manager.refresh_session(user_id)

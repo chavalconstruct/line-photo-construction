@@ -9,11 +9,11 @@ class StateManager:
     # Default session time: 10 minutes (600 seconds)
     SESSION_DURATION_SECONDS = 600
 
-    def __init__(self, session_duration_seconds: int = SESSION_DURATION_SECONDS):
+    def __init__(self, session_duration_seconds: int = SESSION_DURATION_SECONDS) -> None:
         self._pending_uploads: Dict[str, Dict[str, Any]] = {}
         self.SESSION_DURATION_SECONDS = session_duration_seconds
 
-    def set_pending_upload(self, user_id: str, group_name: str):
+    def set_pending_upload(self, user_id: str, group_name: str) -> None:
         """
         Starts or resets an upload session for a user.
 
@@ -38,11 +38,11 @@ class StateManager:
         Returns:
             The group name if the session is active, otherwise None.
         """
-        session_data = self._pending_uploads.get(user_id)
+        session_data: Optional[Dict[str, Any]] = self._pending_uploads.get(user_id)
         if not session_data:
             return None
 
-        elapsed_time = time.time() - session_data["timestamp"]
+        elapsed_time: float = time.time() - session_data["timestamp"]
         if elapsed_time > self.SESSION_DURATION_SECONDS:
             # Session expired, clear it and return None
             del self._pending_uploads[user_id]
@@ -52,7 +52,7 @@ class StateManager:
         # Session is active, return the group name
         return session_data["group"]
 
-    def refresh_session(self, user_id: str):
+    def refresh_session(self, user_id: str)-> None:
         """
         Refreshes the session timestamp for a user to the current time.
         This is typically called after a successful action, like an image upload.

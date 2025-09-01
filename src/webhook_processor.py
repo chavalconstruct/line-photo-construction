@@ -3,7 +3,7 @@ This module acts as a router for incoming webhook events from the LINE API,
 directing them to the appropriate handlers based on message type.
 """
 import logging
-from typing import Optional
+from typing import Optional, Any
 
 import redis
 import os
@@ -23,8 +23,8 @@ from src.handlers.image_message_handler import handle_image_message
 logger = logging.getLogger(__name__)
 
 # --- Redis Client Initialization ---
-redis_client = None
-redis_url = os.getenv('REDIS_URL')
+redis_client: Optional[redis.Redis] = None
+redis_url: Optional[str] = os.getenv('REDIS_URL')
 if redis_url:
     try:
         redis_client = redis.from_url(redis_url, decode_responses=True)
@@ -45,7 +45,7 @@ async def process_webhook_event(
     line_bot_api: AsyncMessagingApi,
     channel_access_token: str,
     parent_folder_id: Optional[str]
-):
+) -> None:
     """
     Acts as a router, checking for duplicate events and then passing the
     event to the appropriate handler based on its message type.
@@ -56,8 +56,8 @@ async def process_webhook_event(
 
     # --- Duplicate Event Check (using Redis) ---
     if redis_client:
-        message_id = event.message.id
-        redis_key = f"line_msg_{message_id}"
+        message_id: str = event.message.id
+        redis_key: str = f"line_msg_{message_id}"
         if not redis_client.set(redis_key, "processed", nx=True, ex=60):
             logger.warning(f"⚠️ Duplicate event received: message_id={message_id}. Ignoring.")
             return
