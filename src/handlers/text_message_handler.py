@@ -83,9 +83,21 @@ async def handle_text_message(
     line_bot_api: AsyncMessagingApi,
     parent_folder_id: Optional[str],
 ) -> None:
-    """
-    Handles all logic for incoming text message events, including commands,
-    session management, and note-taking.
+    """Orchestrates responses to incoming text messages.
+
+    This function acts as the primary router for text messages. It first
+    checks if the message is an administrative command. If not, it processes
+    the message for session management (starting a new session with a secret
+code)
+    or for saving content as a note if a session is already active.
+
+    Args:
+        event: The MessageEvent object from the LINE webhook.
+        state_manager: The manager for user sessions.
+        config_manager: The manager for application configuration and secrets.
+        gdrive_service: The service for interacting with Google Drive.
+        line_bot_api: The LINE Messaging API client.
+        parent_folder_id: The ID of the root folder in Google Drive, if configured.
     """
     if not event.source or not event.source.user_id:
         return

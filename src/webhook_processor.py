@@ -1,6 +1,9 @@
 """
-This module acts as a router for incoming webhook events from the LINE API,
-directing them to the appropriate handlers based on message type.
+Acts as a router for incoming webhook events from the LINE API.
+
+This module receives all webhook events, checks for duplicates using Redis
+if available, and then forwards the event to the appropriate handler
+(e.g., text or image) based on its message type.
 """
 import logging
 from typing import Optional, Any
@@ -46,9 +49,16 @@ async def process_webhook_event(
     channel_access_token: str,
     parent_folder_id: Optional[str]
 ) -> None:
-    """
-    Acts as a router, checking for duplicate events and then passing the
-    event to the appropriate handler based on its message type.
+    """Validates, de-duplicates, and routes a webhook event to its handler.
+
+    Args:
+        event: The event object from the LINE webhook.
+        state_manager: The manager for user sessions.
+        config_manager: The manager for application configuration.
+        gdrive_service: The service for Google Drive interactions.
+        line_bot_api: The LINE Messaging API client for sending replies.
+        channel_access_token: The access token for downloading message content.
+        parent_folder_id: The root Google Drive folder ID for uploads.
     """
     if not isinstance(event, MessageEvent):
         logger.info(f"Received non-message event: {type(event).__name__}. Ignoring.")

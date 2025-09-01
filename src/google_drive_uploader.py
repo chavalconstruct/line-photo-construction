@@ -1,5 +1,10 @@
-# src/google_drive_uploader.py
+"""
+This module handles all interactions with the Google Drive API.
 
+It provides a service class, GoogleDriveService, which encapsulates the
+logic for authentication, token management, folder creation, and file uploads,
+including appending text content to existing files.
+"""
 import logging
 import io
 import os.path
@@ -16,9 +21,18 @@ from datetime import datetime
 dotenv.load_dotenv()
 
 class GoogleDriveService:
-    """
-    A wrapper class for the Google Drive API service.
-    This contains the real implementation for API calls.
+    """A wrapper for the Google Drive API service.
+
+    This class handles the entire lifecycle of Google Drive interactions,
+    from the initial authentication flow to performing file and folder
+    operations. It is designed to be instantiated as a singleton within
+    the application.
+
+    Attributes:
+        SCOPES: A list of strings defining the required API permissions.
+        CREDENTIALS_FILE: The path to the Google Cloud credentials JSON file.
+        TOKEN_FILE: The path to the generated token JSON file for authentication.
+        service: The authenticated Google Drive API service object.
     """
     SCOPES: List[str] = ['https://www.googleapis.com/auth/drive']
     CREDENTIALS_FILE: str = os.getenv('CREDENTIALS_FILE_PATH', 'credentials.json')
@@ -38,9 +52,14 @@ class GoogleDriveService:
         logging.info("Google Drive Service initialized successfully.")
 
     def _get_credentials(self) -> Credentials:
-        """
-        Gets valid user credentials. If not available, it initiates
-        the user authentication flow.
+        """Handles the OAuth2 authentication flow.
+
+        Attempts to load existing credentials from the token file. If they
+        are non-existent, invalid, or expired, it initiates a new OAuth2
+        flow to get new credentials, which are then saved for future runs.
+
+        Returns:
+            A valid Google OAuth2 Credentials object.
         """
         creds: Optional[Credentials] = None
         if os.path.exists(self.TOKEN_FILE):
@@ -59,9 +78,15 @@ class GoogleDriveService:
         return creds
 
     def find_or_create_folder(self, folder_name: str, parent_folder_id: Optional[str] = None) -> str:
-        """
-        Finds or creates a folder. If parent_folder_id is None, 
-        it operates in the root of "My Drive".
+        """Finds a folder by name within a parent folder, creating it if it doesn't exist.
+
+        Args:
+            folder_name: The name of the folder to find or create.
+            parent_folder_id: The ID of the parent folder to search within. If
+                None, searches in the root of "My Drive".
+
+        Returns:
+            The ID of the found or newly created folder.
         """
         query_parts: List[str] = [
             "mimeType='application/vnd.google-apps.folder'",
@@ -87,6 +112,16 @@ class GoogleDriveService:
             return folder.get('id')
 
     def upload_file(self, file_name: str, file_content: bytes, folder_id: str) -> str:
+        """Uploads file content to a specified folder in Google Drive.
+
+        Args:
+            file_name: The desired name for the file in Google Drive.
+            file_content: The raw binary content of the file.
+            folder_id: The ID of the parent folder where the file will be uploaded.
+
+        Returns:
+            The ID of the newly uploaded file.
+        """
         file_metadata: Dict[str, Any] = {'name': file_name, 'parents': [folder_id]}
         media = MediaIoBaseUpload(io.BytesIO(file_content), mimetype='image/jpeg', resumable=True)
         request: Any = self.service.files().create(body=file_metadata, media_body=media, fields='id')
@@ -101,9 +136,16 @@ class GoogleDriveService:
         return response.get('id')
     
     def append_text_to_file(self, file_name: str, text_to_append: str, folder_id: str) -> None:
-        """
-        Appends a line of text to a file in Google Drive. If the file
-        doesn't exist, it creates it.
+        """Appends a timestamped line of text to a file in Google Drive.
+
+        If the specified file doesn't exist in the folder, it will be created
+        with the text as its initial content. If it exists, the new text will
+        be appended to it.
+
+        Args:
+            file_name: The name of the target text file (e.g., "notes.txt").
+            text_to_append: The line of text to add to the file.
+            folder_id: The ID of the folder containing the file.
         """
         query: str = f"name='{file_name}' and '{folder_id}' in parents and trashed=false"
         response: Dict[str, Any] = self.service.files().list(q=query, fields='files(id)').execute()
