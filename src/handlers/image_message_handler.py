@@ -2,7 +2,7 @@ import logging
 import aiohttp
 import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict
 
 from linebot.v3.webhooks import MessageEvent
 from src.state_manager import StateManager

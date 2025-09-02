@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from linebot.v3.webhooks import MessageEvent
 from linebot.v3.messaging import (
