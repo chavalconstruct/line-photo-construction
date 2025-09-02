@@ -150,4 +150,4 @@ code)
         gdrive_service.append_text_to_file(
             daily_log_filename, note_to_save, daily_folder_id
         )
-        state_manager.refresh_session(user_id)
+        

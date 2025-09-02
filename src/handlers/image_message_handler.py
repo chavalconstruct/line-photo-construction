@@ -64,6 +64,5 @@ async def handle_image_message(
             file_name: str = f"{event.message.id}.jpg"
             gdrive_service.upload_file(file_name, image_content, daily_folder_id)
             
-            state_manager.refresh_session(user_id)
     else:
         logger.warning(f"Image received from user {user_id} but they have no active session. Ignoring.")

@@ -81,8 +81,7 @@ class TestTextMessagesAndNotes:
             "This is a follow-up note.",
             "daily_folder_id"
         )
-        mock_state_manager.refresh_session.assert_called_once_with("U123_note_user")
-
+        
     @pytest.mark.asyncio
     async def test_handles_secret_code_without_space_before_note(
         self, mock_config_manager, mock_state_manager, mock_line_bot_api, mock_gdrive_service

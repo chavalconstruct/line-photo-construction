@@ -61,16 +61,4 @@ class StateManager:
         # Session is active, return the group name
         return session_data["group_name"]
 
-    def refresh_session(self, user_id: str)-> None:
-        """Updates a user's session timestamp to prevent it from expiring.
-
-        This should be called after a successful user action within a session,
-        such as uploading a photo or saving a note.
-
-        Args:
-            user_id: The unique identifier for the LINE user whose session
-                needs to be refreshed.
-        """  
-        if user_id in self._pending_uploads:
-            self._pending_uploads[user_id]['timestamp'] = time.time()
-            print(f"Session for user {user_id} has been refreshed.")
+    

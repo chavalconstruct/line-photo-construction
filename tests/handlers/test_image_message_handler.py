@@ -58,8 +58,7 @@ class TestImageMessages:
             mock_gdrive_service.upload_file.assert_called_once_with(
                 f"{event.message.id}.jpg", b'fake-image-bytes', "daily_folder_id"
             )
-            mock_state_manager.refresh_session.assert_called_once_with("U123_any_user")
-        
+                    
     @pytest.mark.asyncio
     @patch('src.handlers.image_message_handler.download_image_content')
     async def test_ignores_image_when_no_active_session(
@@ -78,8 +77,7 @@ class TestImageMessages:
         mock_state_manager.get_active_group.assert_called_once_with("U456_other_user")
         mock_download.assert_not_called()
         mock_gdrive_service.upload_file.assert_not_called()
-        mock_state_manager.refresh_session.assert_not_called()
-
+        
 class TestNetworkHandling:
     """Tests helper functions related to network operations, such as
     downloading content with retry logic.
