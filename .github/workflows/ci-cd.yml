@@ -2,7 +2,7 @@ name: CI/CD Pipeline for LINE Image Uploader
 
 on:
   push:
-    branches: [ "develop" ]
+    branches: [ "main" ]
 
 jobs:
   test:
