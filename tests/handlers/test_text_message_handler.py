@@ -123,3 +123,35 @@ class TestTextMessagesAndNotes:
 
         mock_state_manager.get_active_group.assert_called_once_with("U456_no_session")
         mock_gdrive_service.append_text_to_file.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_handles_longer_secret_code_correctly(
+        self, mock_config_manager, mock_state_manager, mock_line_bot_api, mock_gdrive_service
+    ):
+        """
+        Tests that when multiple codes could match the start of a message (e.g., #s1 and #s10),
+        the longest matching code is chosen.
+        """
+        # Arrange: Add a longer, more specific code to the mock config
+        mock_config_manager.get_all_secret_codes.return_value = {
+            "#s1": "Group_A",
+            "#s10": "Group_Ten"
+        }
+        
+        text_message = TextMessageContent(id="t_longer", text="#s10 This is for group ten.", quote_token="q_token_longer")
+        event = create_mock_event("U_longer_code_user", text_message)
+            
+        # Act
+        await handle_text_message(
+            event, mock_state_manager, mock_config_manager, 
+            mock_gdrive_service, mock_line_bot_api, "dummy_parent_id"
+        )
+
+        # Assert: Ensure the session is started for the correct (longer) code
+        mock_state_manager.set_pending_upload.assert_called_once_with("U_longer_code_user", "Group_Ten")
+        
+        # Assert: Ensure the note is extracted correctly after the longer code
+        mock_gdrive_service.append_text_to_file.assert_called_once()
+        args, kwargs = mock_gdrive_service.append_text_to_file.call_args
+        extracted_note = args[1]
+        assert extracted_note == "This is for group ten."

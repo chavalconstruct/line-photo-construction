@@ -112,29 +112,42 @@ code)
 
     note_to_save: Optional[str] = None
     active_group: Optional[str] = None
-    group_from_code: Optional[str] = None
-
+    
+    # --- START: NEW & CORRECTED LOGIC ---
+    # Find the longest secret code that prefixes the message to avoid partial matches (e.g., #s1 vs #s10).
+    matching_code: Optional[str] = None
     all_codes: Dict[str, str] = config_manager.get_all_secret_codes()
-    for code, group in all_codes.items():
+
+    for code in all_codes.keys():
         if text.startswith(code):
-            group_from_code = group
-            state_manager.set_pending_upload(user_id, group_from_code)
-            active_group = group_from_code
+            # If we find a matching code, we check if it's longer than any previous match.
+            if matching_code is None or len(code) > len(matching_code):
+                matching_code = code
 
-            note: str = text[len(code) :].lstrip()
-            if note:
-                note_to_save = note
+    # If a definitive matching code was found, process it.
+    if matching_code:
+        group_from_code = all_codes[matching_code]
+        state_manager.set_pending_upload(user_id, group_from_code)
+        active_group = group_from_code
 
-            logger.info(
-                f"Session started/refreshed for user {user_id} to group '{active_group}'."
-            )
-            break
+        # Extract the note, stripping the code and any leading space.
+        note: str = text[len(matching_code) :].lstrip()
+        if note:
+            note_to_save = note
 
-    if not group_from_code:
+        logger.info(
+            f"Session started/refreshed for user {user_id} to group '{active_group}'."
+        )
+    # --- END: NEW & CORRECTED LOGIC ---
+
+    # If no secret code was found in the message, check if there's an active session.
+    # This block remains NECESSARY for subsequent notes.
+    if not active_group:
         active_group = state_manager.get_active_group(user_id)
         if active_group:
             note_to_save = text
 
+    # If there's an active group and a note to save, proceed to upload.
     if active_group and note_to_save:
         logger.info(f"Saving note for user {user_id} in group '{active_group}'.")
         today_str: str = datetime.now().strftime("%Y-%m-%d")
@@ -150,4 +163,3 @@ code)
         gdrive_service.append_text_to_file(
             daily_log_filename, note_to_save, daily_folder_id
         )
-        
