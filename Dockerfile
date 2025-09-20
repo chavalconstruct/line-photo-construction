@@ -1,5 +1,7 @@
+# Dockerfile
+
 # ---- Stage 1: The Builder ----
-# (This part is correct and remains the same)
+# (ส่วนนี้ยังคงเหมือนเดิม)
 FROM python:3.11 AS builder
 RUN pip install uv
 WORKDIR /app
@@ -15,16 +17,30 @@ WORKDIR /app
 # Copy installed dependencies from the 'builder' stage
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 
-# --- ADD THIS LINE ---
 # Copy python executables from the 'builder' stage
 COPY --from=builder /usr/local/bin /usr/local/bin
-# --------------------
 
 # Copy the application source code
 COPY . .
+
+# --- START: การแก้ไขสำหรับสถาปัตยกรรม Entrypoint ---
+
+# 1. COPY สคริปต์ที่สร้างขึ้นใหม่เข้าไปใน image
+COPY fetch_secrets.py .
+COPY entrypoint.sh .
+
+# 2. ให้สิทธิ์ในการ execute กับ entrypoint script
+RUN chmod +x entrypoint.sh
+
+# 3. ตั้งค่า ENTRYPOINT ให้ชี้ไปที่สคริปต์ของเรา
+ENTRYPOINT ["./entrypoint.sh"]
+
+# --- END: การแก้ไข ---
+
 
 # Expose the port the app will run on
 EXPOSE 8000
 
 # Command to run the application using uvicorn
-CMD ["/bin/sh", "-c", "echo $CONFIG_JSON | base64 -d > config.json && echo $CREDENTIALS_JSON | base64 -d > credentials.json && echo $TOKEN_JSON | base64 -d > token.json && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# คำสั่งนี้จะถูกส่งเป็น arguments ($@) ไปให้กับ entrypoint.sh
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "${PORT:-8000}"]

@@ -2,6 +2,9 @@
 .git
 .gitignore
 
+# GitHub Actions
+.github/
+
 # Python Caches
 __pycache__/
 *.pyc
@@ -12,7 +15,9 @@ __pycache__/
 .venv/
 venv/
 
-# Testing & Cache
+# Testing & Features (ไม่จำเป็นสำหรับ Production Image)
+tests/
+features/
 .pytest_cache/
 .coverage
 
@@ -25,9 +30,16 @@ venv/
 
 # Secrets & Credentials - DO NOT INCLUDE IN IMAGE
 .env
+.env.example
 token.json
 credentials.json
 config.json
 
-# Local artifacts
+# Local Development & Utility Scripts
+docker-compose.yml
+run_once_to_login.py
+config.json.template
+
+# Local artifacts & sample data
 *.bak
+Group A/
