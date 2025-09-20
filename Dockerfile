@@ -27,4 +27,4 @@ COPY . .
 EXPOSE 8000
 
 # Command to run the application using uvicorn
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["/bin/sh", "-c", "echo $CONFIG_JSON | base64 -d > config.json && echo $CREDENTIALS_JSON | base64 -d > credentials.json && echo $TOKEN_JSON | base64 -d > token.json && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
